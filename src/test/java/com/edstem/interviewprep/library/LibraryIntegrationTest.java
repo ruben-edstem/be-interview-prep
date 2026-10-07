@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.edstem.interviewprep.library.dto.request.BookRequest;
 import com.edstem.interviewprep.library.dto.request.BorrowRequest;
 import com.edstem.interviewprep.library.dto.response.BookResponse;
+import com.edstem.interviewprep.library.entity.Book;
 import com.edstem.interviewprep.library.exception.BookAlreadyBorrowedException;
 import com.edstem.interviewprep.library.exception.BookBorrowedException;
 import com.edstem.interviewprep.library.exception.BookNotFoundException;
@@ -25,6 +26,9 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @SpringBootTest
 class LibraryIntegrationTest {
@@ -35,6 +39,7 @@ class LibraryIntegrationTest {
   @Autowired private LoanService loanService;
   @Autowired private BookRepository bookRepository;
   @Autowired private LoanRepository loanRepository;
+  @Autowired private PlatformTransactionManager transactionManager;
 
   @AfterEach
   void cleanUp() {
@@ -103,6 +108,27 @@ class LibraryIntegrationTest {
 
     assertThatThrownBy(() -> bookService.get(book.id())).isInstanceOf(BookNotFoundException.class);
     assertThat(loanRepository.count()).isZero();
+  }
+
+  @Test
+  void editingABookDoesNotOverwriteABorrowMadeMeanwhile() {
+    BookResponse book = createBook("978-0-13-235088-4");
+    TransactionTemplate editing = new TransactionTemplate(transactionManager);
+    TransactionTemplate separate = new TransactionTemplate(transactionManager);
+    separate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+
+    editing.executeWithoutResult(
+        status -> {
+          Book stale = bookRepository.findById(book.id()).orElseThrow();
+          separate.executeWithoutResult(
+              inner -> loanService.borrow(book.id(), new BorrowRequest("member-1")));
+          stale.setTitle("Renamed");
+          bookRepository.saveAndFlush(stale);
+        });
+
+    BookResponse reloaded = bookService.get(book.id());
+    assertThat(reloaded.title()).isEqualTo("Renamed");
+    assertThat(reloaded.available()).isFalse();
   }
 
   private BookResponse createBook(String isbn) {
