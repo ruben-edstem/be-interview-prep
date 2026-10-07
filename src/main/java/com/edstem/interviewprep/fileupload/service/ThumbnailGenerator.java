@@ -6,7 +6,6 @@ import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.util.Iterator;
 import java.util.Optional;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
@@ -27,29 +26,23 @@ public class ThumbnailGenerator {
     }
     try (ImageInputStream input =
         ImageIO.createImageInputStream(new ByteArrayInputStream(content))) {
-      return read(type, input)
-          .map(image -> shrink(image, type))
-          .flatMap(image -> encode(image, type));
+      BufferedImage source = read(type, input);
+      return Optional.of(encode(shrink(source, type), type)).filter(bytes -> bytes.length > 0);
     } catch (IOException | RuntimeException e) {
       log.warn("Could not create a {} thumbnail", type, e);
       return Optional.empty();
     }
   }
 
-  private Optional<BufferedImage> read(FileType type, ImageInputStream input) throws IOException {
-    Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName(type.getImageFormat());
-    if (input == null || !readers.hasNext()) {
-      return Optional.empty();
-    }
-    ImageReader reader = readers.next();
+  private BufferedImage read(FileType type, ImageInputStream input) throws IOException {
+    ImageReader reader = ImageIO.getImageReadersByFormatName(type.getImageFormat()).next();
     try {
       reader.setInput(input, true, true);
       long pixels = (long) reader.getWidth(0) * reader.getHeight(0);
-      if (pixels <= 0 || pixels > MAX_SOURCE_PIXELS) {
-        log.warn("Skipping thumbnail: image has {} pixels", pixels);
-        return Optional.empty();
+      if (pixels > MAX_SOURCE_PIXELS) {
+        throw new IllegalArgumentException("Image has " + pixels + " pixels");
       }
-      return Optional.ofNullable(reader.read(0));
+      return reader.read(0);
     } finally {
       reader.dispose();
     }
@@ -84,15 +77,9 @@ public class ThumbnailGenerator {
     return target;
   }
 
-  private Optional<byte[]> encode(BufferedImage image, FileType type) {
-    try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
-      if (!ImageIO.write(image, type.getImageFormat(), output)) {
-        return Optional.empty();
-      }
-      return Optional.of(output.toByteArray());
-    } catch (IOException e) {
-      log.warn("Could not encode a {} thumbnail", type, e);
-      return Optional.empty();
-    }
+  private byte[] encode(BufferedImage image, FileType type) throws IOException {
+    ByteArrayOutputStream output = new ByteArrayOutputStream();
+    ImageIO.write(image, type.getImageFormat(), output);
+    return output.toByteArray();
   }
 }
