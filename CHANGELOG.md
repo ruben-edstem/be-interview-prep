@@ -4,6 +4,10 @@
 
 - Add the Q5 waiting list: patients can join and leave the waiting list of a taken slot, and a cancelled booking is offered to the longest-waiting patient as a 5-minute hold with a logged notification. An offer that is not confirmed passes to the next patient, and new patients cannot take a slot that has a waiting list.
 
+## 0.1.9
+
+- Add thumbnails for uploaded JPEG and PNG images: a proportional preview of at most 200 pixels on the longest side, fetched with `GET /files/{id}/thumbnail`, removed with the file, and left out (without failing the upload) when it cannot be created. PDFs get none and return a clear error.
+
 ## 0.1.8
 
 - Add Q2 optional extra: download the monthly spending summary as a CSV file from `GET /expenses/summary/csv?month=YYYY-MM`, with one row per category, an overall total row, exact two-decimal amounts and a file name that includes the month.

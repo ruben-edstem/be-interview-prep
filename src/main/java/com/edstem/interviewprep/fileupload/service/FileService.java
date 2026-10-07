@@ -3,11 +3,14 @@ package com.edstem.interviewprep.fileupload.service;
 import com.edstem.interviewprep.fileupload.config.FileUploadProperties;
 import com.edstem.interviewprep.fileupload.dto.response.FileDownload;
 import com.edstem.interviewprep.fileupload.dto.response.FileResponse;
+import com.edstem.interviewprep.fileupload.dto.response.ThumbnailDownload;
 import com.edstem.interviewprep.fileupload.entity.FileType;
 import com.edstem.interviewprep.fileupload.entity.StoredFile;
+import com.edstem.interviewprep.fileupload.exception.FileStorageException;
 import com.edstem.interviewprep.fileupload.exception.FileTooLargeException;
 import com.edstem.interviewprep.fileupload.exception.InvalidFileException;
 import com.edstem.interviewprep.fileupload.exception.StoredFileNotFoundException;
+import com.edstem.interviewprep.fileupload.exception.ThumbnailNotAvailableException;
 import com.edstem.interviewprep.fileupload.exception.UnsupportedFileTypeException;
 import com.edstem.interviewprep.fileupload.repository.StoredFileRepository;
 import java.io.IOException;
@@ -32,6 +35,7 @@ public class FileService {
   private final StoredFileRepository repository;
   private final FileStorageService storage;
   private final FileUploadProperties properties;
+  private final ThumbnailGenerator generator;
 
   @Transactional
   public FileResponse upload(MultipartFile file) {
@@ -41,7 +45,9 @@ public class FileService {
     validateExtension(originalName, type);
 
     String storageKey = storage.store(file);
+    String thumbnailKey = null;
     try {
+      thumbnailKey = storeThumbnail(file, type);
       StoredFile saved =
           repository.saveAndFlush(
               StoredFile.builder()
@@ -49,12 +55,24 @@ public class FileService {
                   .fileType(type)
                   .sizeBytes(file.getSize())
                   .storageKey(storageKey)
+                  .thumbnailKey(thumbnailKey)
                   .build());
       log.info("Stored file {} as {} ({} bytes)", saved.getId(), type, saved.getSizeBytes());
       return FileResponse.from(saved);
     } catch (RuntimeException e) {
-      storage.delete(storageKey);
+      discard(storageKey, e);
+      if (thumbnailKey != null) {
+        discard(thumbnailKey, e);
+      }
       throw e;
+    }
+  }
+
+  private void discard(String key, RuntimeException cause) {
+    try {
+      storage.delete(key);
+    } catch (FileStorageException e) {
+      cause.addSuppressed(e);
     }
   }
 
@@ -73,12 +91,40 @@ public class FileService {
         storage.load(file.getStorageKey()));
   }
 
+  @Transactional(readOnly = true)
+  public ThumbnailDownload thumbnail(Long id) {
+    StoredFile file = find(id);
+    if (file.getThumbnailKey() == null) {
+      throw new ThumbnailNotAvailableException(
+          file.getFileType().isImage()
+              ? "No thumbnail could be created for file " + id
+              : "Files of type " + file.getFileType() + " have no thumbnail");
+    }
+    return new ThumbnailDownload(
+        file.getFileType().getMediaType(), storage.load(file.getThumbnailKey()));
+  }
+
   @Transactional
   public void delete(Long id) {
     StoredFile file = find(id);
     repository.delete(file);
+    if (file.getThumbnailKey() != null) {
+      storage.delete(file.getThumbnailKey());
+    }
     storage.delete(file.getStorageKey());
     log.info("Deleted file {}", id);
+  }
+
+  private String storeThumbnail(MultipartFile file, FileType type) {
+    if (!type.isImage()) {
+      return null;
+    }
+    try {
+      return generator.create(type, file.getBytes()).map(storage::storeBytes).orElse(null);
+    } catch (IOException | FileStorageException e) {
+      log.warn("Stored the file without a thumbnail", e);
+      return null;
+    }
   }
 
   private StoredFile find(Long id) {

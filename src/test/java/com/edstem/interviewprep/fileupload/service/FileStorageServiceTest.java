@@ -52,6 +52,22 @@ class FileStorageServiceTest {
   }
 
   @Test
+  void storeOfBytesWritesContentUnderTheStorageRootWithAGeneratedName() throws IOException {
+    String key = storage.storeBytes(TestFiles.PNG);
+
+    Path stored = storageRoot.resolve(key);
+    assertTrue(Files.isRegularFile(stored));
+    assertArrayEquals(TestFiles.PNG, Files.readAllBytes(stored));
+  }
+
+  @Test
+  void storeOfBytesFailsWhenTheStorageDirectoryIsGone() throws IOException {
+    Files.delete(storageRoot);
+
+    assertThrows(FileStorageException.class, () -> storage.storeBytes(TestFiles.PNG));
+  }
+
+  @Test
   void loadReturnsStoredContent() throws IOException {
     String key = storage.store(new MockMultipartFile("file", "a.png", "image/png", TestFiles.PNG));
 

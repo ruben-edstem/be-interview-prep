@@ -15,9 +15,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.edstem.interviewprep.fileupload.TestFiles;
 import com.edstem.interviewprep.fileupload.dto.response.FileDownload;
 import com.edstem.interviewprep.fileupload.dto.response.FileResponse;
+import com.edstem.interviewprep.fileupload.dto.response.ThumbnailDownload;
 import com.edstem.interviewprep.fileupload.exception.FileStorageException;
 import com.edstem.interviewprep.fileupload.exception.FileTooLargeException;
 import com.edstem.interviewprep.fileupload.exception.StoredFileNotFoundException;
+import com.edstem.interviewprep.fileupload.exception.ThumbnailNotAvailableException;
 import com.edstem.interviewprep.fileupload.exception.UnsupportedFileTypeException;
 import com.edstem.interviewprep.fileupload.service.FileService;
 import java.time.Instant;
@@ -46,7 +48,7 @@ class FileControllerTest {
     when(fileService.upload(any()))
         .thenReturn(
             new FileResponse(
-                1L, "photo.png", "image/png", 64, Instant.parse("2026-01-01T10:00:00Z")));
+                1L, "photo.png", "image/png", 64, Instant.parse("2026-01-01T10:00:00Z"), true));
 
     mockMvc
         .perform(multipart("/files").file(png))
@@ -55,7 +57,8 @@ class FileControllerTest {
         .andExpect(jsonPath("$.originalName").value("photo.png"))
         .andExpect(jsonPath("$.contentType").value("image/png"))
         .andExpect(jsonPath("$.size").value(64))
-        .andExpect(jsonPath("$.uploadedAt").value("2026-01-01T10:00:00Z"));
+        .andExpect(jsonPath("$.uploadedAt").value("2026-01-01T10:00:00Z"))
+        .andExpect(jsonPath("$.thumbnailAvailable").value(true));
   }
 
   @Test
@@ -104,7 +107,8 @@ class FileControllerTest {
   @Test
   void listReturnsFileRecords() throws Exception {
     when(fileService.list())
-        .thenReturn(List.of(new FileResponse(2L, "doc.pdf", "application/pdf", 10, Instant.EPOCH)));
+        .thenReturn(
+            List.of(new FileResponse(2L, "doc.pdf", "application/pdf", 10, Instant.EPOCH, false)));
 
     mockMvc
         .perform(get("/files"))
@@ -112,7 +116,8 @@ class FileControllerTest {
         .andExpect(jsonPath("$[0].originalName").value("doc.pdf"))
         .andExpect(jsonPath("$[0].contentType").value("application/pdf"))
         .andExpect(jsonPath("$[0].size").value(10))
-        .andExpect(jsonPath("$[0].uploadedAt").exists());
+        .andExpect(jsonPath("$[0].uploadedAt").exists())
+        .andExpect(jsonPath("$[0].thumbnailAvailable").value(false));
   }
 
   @Test
@@ -171,6 +176,41 @@ class FileControllerTest {
         .andExpect(jsonPath("$.status").value(500))
         .andExpect(jsonPath("$.errorCode").value("INTERNAL_SERVER_ERROR"))
         .andExpect(jsonPath("$.message").value("Unexpected error"));
+  }
+
+  @Test
+  void thumbnailReturnsTheImage() throws Exception {
+    byte[] content = {1, 2, 3};
+    when(fileService.thumbnail(1L))
+        .thenReturn(new ThumbnailDownload("image/png", new ByteArrayResource(content)));
+
+    mockMvc
+        .perform(get("/files/1/thumbnail"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType("image/png"))
+        .andExpect(content().bytes(content))
+        .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+  }
+
+  @Test
+  void thumbnailOfAPdfReturnsAClearNotFoundError() throws Exception {
+    when(fileService.thumbnail(2L))
+        .thenThrow(new ThumbnailNotAvailableException("Files of type PDF have no thumbnail"));
+
+    mockMvc
+        .perform(get("/files/2/thumbnail"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.errorCode").value("THUMBNAIL_NOT_AVAILABLE"))
+        .andExpect(jsonPath("$.message").value("Files of type PDF have no thumbnail"));
+  }
+
+  @Test
+  void thumbnailWithNonPositiveIdIsABadRequest() throws Exception {
+    mockMvc
+        .perform(get("/files/0/thumbnail"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
   }
 
   @Test

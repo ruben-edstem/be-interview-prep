@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.edstem.interviewprep.fileupload.repository.StoredFileRepository;
 import com.jayway.jsonpath.JsonPath;
+import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -134,6 +135,107 @@ class FileUploadIntegrationTest {
     assertEquals(1, storedFileCount());
     assertTrue(Files.notExists(base.resolve("evil.png")));
     assertTrue(Files.notExists(base.getParent().resolve("evil.png")));
+  }
+
+  @Test
+  void pngUploadGetsAThumbnailNoLargerThanTheLimit() throws Exception {
+    byte[] png = TestFiles.image("png", 800, 400);
+
+    int id = upload("wide.png", "image/png", png, true);
+
+    byte[] thumbnail =
+        mockMvc
+            .perform(get("/files/" + id + "/thumbnail"))
+            .andExpect(status().isOk())
+            .andExpect(content().contentType("image/png"))
+            .andReturn()
+            .getResponse()
+            .getContentAsByteArray();
+    BufferedImage image = TestFiles.decode(thumbnail);
+    assertEquals(200, image.getWidth());
+    assertEquals(100, image.getHeight());
+    assertEquals(2, storedFileCount());
+  }
+
+  @Test
+  void jpegUploadGetsAThumbnailNoLargerThanTheLimit() throws Exception {
+    byte[] jpeg = TestFiles.image("jpg", 300, 600);
+
+    int id = upload("tall.jpg", "image/jpeg", jpeg, true);
+
+    byte[] thumbnail =
+        mockMvc
+            .perform(get("/files/" + id + "/thumbnail"))
+            .andExpect(status().isOk())
+            .andExpect(content().contentType("image/jpeg"))
+            .andReturn()
+            .getResponse()
+            .getContentAsByteArray();
+    BufferedImage image = TestFiles.decode(thumbnail);
+    assertEquals(100, image.getWidth());
+    assertEquals(200, image.getHeight());
+  }
+
+  @Test
+  void pdfGetsNoThumbnailAndAskingForOneIsAClearError() throws Exception {
+    int id = upload("doc.pdf", "application/pdf", TestFiles.PDF, false);
+
+    mockMvc
+        .perform(get("/files/" + id + "/thumbnail"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value("THUMBNAIL_NOT_AVAILABLE"));
+
+    assertEquals(1, storedFileCount());
+  }
+
+  @Test
+  void imageThatCannotBeDecodedIsStoredWithoutAThumbnailAndLeavesNothingHalfStored()
+      throws Exception {
+    int id = upload("broken.png", "image/png", TestFiles.PNG, false);
+
+    mockMvc
+        .perform(get("/files/" + id + "/thumbnail"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.errorCode").value("THUMBNAIL_NOT_AVAILABLE"));
+
+    assertEquals(1, storedFileCount());
+    assertEquals(1, repository.count());
+  }
+
+  @Test
+  void deletingAnImageRemovesItsThumbnailToo() throws Exception {
+    int id = upload("photo.png", "image/png", TestFiles.image("png", 500, 500), true);
+    assertEquals(2, storedFileCount());
+
+    mockMvc.perform(delete("/files/" + id)).andExpect(status().isNoContent());
+
+    assertEquals(0, storedFileCount());
+    assertEquals(0, repository.count());
+    mockMvc.perform(get("/files/" + id + "/thumbnail")).andExpect(status().isNotFound());
+  }
+
+  @Test
+  void thumbnailOfATraversalNamedImageStaysInsideTheStorageDirectory() throws Exception {
+    upload("../../evil.png", "image/png", TestFiles.image("png", 500, 500), true);
+
+    assertEquals(2, storedFileCount());
+    try (Stream<Path> entries = Files.list(base)) {
+      assertEquals(1, entries.count());
+    }
+  }
+
+  private int upload(String name, String contentType, byte[] content, boolean thumbnailExpected)
+      throws Exception {
+    MockMultipartFile file = new MockMultipartFile("file", name, contentType, content);
+    String body =
+        mockMvc
+            .perform(multipart("/files").file(file))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.thumbnailAvailable").value(thumbnailExpected))
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+    return JsonPath.read(body, "$.id");
   }
 
   private long storedFileCount() throws IOException {
