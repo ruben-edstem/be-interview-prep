@@ -24,7 +24,9 @@ class RateLimiterConcurrencyTest {
   void admitsExactlyTheLimitWhenManyRequestsArriveTogether() throws Exception {
     RateLimiter rateLimiter =
         new RateLimiter(
-            new RateLimitProperties(MAX_REQUESTS, Duration.ofHours(1)), Clock.systemUTC());
+            new RateLimitProperties(MAX_REQUESTS, Duration.ofHours(1)),
+            Clock.systemUTC(),
+            new InMemoryRateLimitStore());
     AtomicInteger allowed = new AtomicInteger();
     AtomicInteger rejected = new AtomicInteger();
     CountDownLatch ready = new CountDownLatch(THREADS);
