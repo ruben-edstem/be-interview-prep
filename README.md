@@ -27,3 +27,13 @@ The app listens on `http://localhost:8080`. Uploaded files are stored in `./uplo
 ```bash
 ./mvnw test
 ```
+
+## Running several copies
+
+The rate limit on `GET /api/quotes/random` is counted in the database, so copies that share one database share one limit. The default in-memory H2 is private to each copy; to share it, start every copy with the same file database and let Hibernate keep the schema:
+
+```bash
+./mvnw spring-boot:run -Dspring-boot.run.arguments="--server.port=8081 --spring.datasource.url=jdbc:h2:file:./target/shared-db;AUTO_SERVER=TRUE --spring.jpa.hibernate.ddl-auto=update"
+```
+
+Start a second copy the same way with `--server.port=8082`. Keep the clocks of the copies in sync. Set `ratelimit.store=memory` to count in memory on a single copy.
