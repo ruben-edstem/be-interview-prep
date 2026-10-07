@@ -67,6 +67,30 @@ class BookRepositoryTest {
     assertThat(bookRepository.existsById(saved.getId())).isTrue();
   }
 
+  @Test
+  void markBorrowedSucceedsOnlyOnceUntilTheBookIsReturned() {
+    Book saved = bookRepository.save(book("Clean Code", "Robert Martin", "111"));
+
+    int first = bookRepository.markBorrowed(saved.getId());
+    int second = bookRepository.markBorrowed(saved.getId());
+    int returned = bookRepository.markReturned(saved.getId());
+    int returnedAgain = bookRepository.markReturned(saved.getId());
+    int borrowedAgain = bookRepository.markBorrowed(saved.getId());
+
+    assertThat(first).isEqualTo(1);
+    assertThat(second).isZero();
+    assertThat(returned).isEqualTo(1);
+    assertThat(returnedAgain).isZero();
+    assertThat(borrowedAgain).isEqualTo(1);
+  }
+
+  @Test
+  void markBorrowedDoesNothingForAnUnknownBook() {
+    int updated = bookRepository.markBorrowed(999L);
+
+    assertThat(updated).isZero();
+  }
+
   private Book book(String title, String author, String isbn) {
     return Book.builder().title(title).author(author).isbn(isbn).publishedYear(2008).build();
   }

@@ -19,6 +19,14 @@ public interface BookRepository extends JpaRepository<Book, Long> {
   List<Book> search(@Param("term") String term);
 
   @Modifying(flushAutomatically = true, clearAutomatically = true)
+  @Query("update Book b set b.borrowed = true where b.id = :id and b.borrowed = false")
+  int markBorrowed(@Param("id") Long id);
+
+  @Modifying(flushAutomatically = true, clearAutomatically = true)
+  @Query("update Book b set b.borrowed = false where b.id = :id and b.borrowed = true")
+  int markReturned(@Param("id") Long id);
+
+  @Modifying(flushAutomatically = true, clearAutomatically = true)
   @Query("delete from Book b where b.id = :id and b.borrowed = false")
   int deleteIfAvailable(@Param("id") Long id);
 }
