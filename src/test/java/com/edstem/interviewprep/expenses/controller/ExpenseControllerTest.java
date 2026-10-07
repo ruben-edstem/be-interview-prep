@@ -6,6 +6,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -97,7 +98,7 @@ class ExpenseControllerTest {
     mockMvc
         .perform(post("/expenses").contentType(MediaType.APPLICATION_JSON).content(body))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST"));
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
   }
 
   @Test
@@ -105,7 +106,7 @@ class ExpenseControllerTest {
     mockMvc
         .perform(post("/expenses").contentType(MediaType.APPLICATION_JSON))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.errorCode").value("MALFORMED_REQUEST"));
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
   }
 
   @Test
@@ -130,7 +131,7 @@ class ExpenseControllerTest {
     mockMvc
         .perform(get("/expenses").param("from", "not-a-date"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.errorCode").value("INVALID_PARAMETER"));
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
   }
 
   @Test
@@ -138,7 +139,7 @@ class ExpenseControllerTest {
     mockMvc
         .perform(get("/expenses").param("category", "GAMBLING"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.errorCode").value("INVALID_PARAMETER"));
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
   }
 
   @Test
@@ -176,7 +177,7 @@ class ExpenseControllerTest {
     mockMvc
         .perform(get("/expenses/summary").param("month", "2026-13"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.errorCode").value("INVALID_PARAMETER"));
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
   }
 
   @Test
@@ -184,7 +185,7 @@ class ExpenseControllerTest {
     mockMvc
         .perform(get("/expenses/summary"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.errorCode").value("MISSING_PARAMETER"));
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
   }
 
   @Test
@@ -228,13 +229,40 @@ class ExpenseControllerTest {
   }
 
   @Test
+  void unsupportedMethodReturnsMethodNotAllowed() throws Exception {
+    mockMvc
+        .perform(patch("/expenses"))
+        .andExpect(status().isMethodNotAllowed())
+        .andExpect(jsonPath("$.status").value(405))
+        .andExpect(jsonPath("$.errorCode").value("METHOD_NOT_ALLOWED"));
+  }
+
+  @Test
+  void unknownPathReturnsNotFound() throws Exception {
+    mockMvc
+        .perform(get("/unknown"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.errorCode").value("NOT_FOUND"));
+  }
+
+  @Test
+  void unsupportedContentTypeReturnsUnsupportedMediaType() throws Exception {
+    mockMvc
+        .perform(post("/expenses").contentType(MediaType.TEXT_PLAIN).content("x"))
+        .andExpect(status().isUnsupportedMediaType())
+        .andExpect(jsonPath("$.status").value(415))
+        .andExpect(jsonPath("$.errorCode").value("UNSUPPORTED_MEDIA_TYPE"));
+  }
+
+  @Test
   void unexpectedFailureReturnsGenericErrorWithoutDetails() throws Exception {
     when(service.list(any(), any(), any())).thenThrow(new IllegalStateException("db password"));
 
     mockMvc
         .perform(get("/expenses"))
         .andExpect(status().isInternalServerError())
-        .andExpect(jsonPath("$.errorCode").value("INTERNAL_ERROR"))
+        .andExpect(jsonPath("$.errorCode").value("INTERNAL_SERVER_ERROR"))
         .andExpect(jsonPath("$.message").value("Unexpected error"));
   }
 

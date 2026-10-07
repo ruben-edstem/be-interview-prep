@@ -1,67 +1,63 @@
 package com.edstem.interviewprep.common.exception;
 
-import java.util.stream.Collectors;
+import java.util.Map;
+import java.util.TreeMap;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
-import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
-import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 @Slf4j
 @RestControllerAdvice
-public class GlobalExceptionHandler {
+public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
   @ExceptionHandler(ApiException.class)
-  public ResponseEntity<ErrorResponse> handleApiException(ApiException exception) {
-    return build(exception.getStatus(), exception.getErrorCode(), exception.getMessage());
-  }
-
-  @ExceptionHandler(MethodArgumentNotValidException.class)
-  public ResponseEntity<ErrorResponse> handleValidation(MethodArgumentNotValidException exception) {
-    String message =
-        exception.getBindingResult().getFieldErrors().stream()
-            .map(error -> error.getField() + " " + error.getDefaultMessage())
-            .sorted()
-            .collect(Collectors.joining("; "));
-    return build(HttpStatus.BAD_REQUEST, "VALIDATION_FAILED", message);
-  }
-
-  @ExceptionHandler(HttpMessageNotReadableException.class)
-  public ResponseEntity<ErrorResponse> handleUnreadableBody(
-      HttpMessageNotReadableException exception) {
-    return build(HttpStatus.BAD_REQUEST, "MALFORMED_REQUEST", "Request body is missing or invalid");
-  }
-
-  @ExceptionHandler(MethodArgumentTypeMismatchException.class)
-  public ResponseEntity<ErrorResponse> handleTypeMismatch(
-      MethodArgumentTypeMismatchException exception) {
-    return build(
-        HttpStatus.BAD_REQUEST,
-        "INVALID_PARAMETER",
-        "Parameter '" + exception.getName() + "' has an invalid value");
-  }
-
-  @ExceptionHandler(MissingServletRequestParameterException.class)
-  public ResponseEntity<ErrorResponse> handleMissingParameter(
-      MissingServletRequestParameterException exception) {
-    return build(
-        HttpStatus.BAD_REQUEST,
-        "MISSING_PARAMETER",
-        "Parameter '" + exception.getParameterName() + "' is required");
+  public ResponseEntity<ApiError> handleApiException(ApiException ex) {
+    ApiError body = ApiError.of(ex.getStatus().value(), ex.getErrorCode(), ex.getMessage());
+    return ResponseEntity.status(ex.getStatus()).body(body);
   }
 
   @ExceptionHandler(Exception.class)
-  public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception) {
-    log.error("Unexpected error", exception);
-    return build(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_ERROR", "Unexpected error");
+  public ResponseEntity<ApiError> handleUnexpected(Exception ex) {
+    log.error("Unhandled exception", ex);
+    HttpStatus status = HttpStatus.INTERNAL_SERVER_ERROR;
+    ApiError body = ApiError.of(status.value(), status.name(), "Unexpected error");
+    return ResponseEntity.status(status).body(body);
   }
 
-  private ResponseEntity<ErrorResponse> build(HttpStatus status, String errorCode, String message) {
-    return ResponseEntity.status(status)
-        .body(new ErrorResponse(status.value(), errorCode, message));
+  @Override
+  protected ResponseEntity<Object> handleMethodArgumentNotValid(
+      MethodArgumentNotValidException ex,
+      HttpHeaders headers,
+      HttpStatusCode status,
+      WebRequest request) {
+    Map<String, String> fieldErrors = new TreeMap<>();
+    ex.getBindingResult()
+        .getFieldErrors()
+        .forEach(error -> fieldErrors.putIfAbsent(error.getField(), error.getDefaultMessage()));
+    ApiError body =
+        new ApiError(status.value(), "VALIDATION_FAILED", "Request validation failed", fieldErrors);
+    return ResponseEntity.status(status).headers(headers).body(body);
+  }
+
+  @Override
+  protected ResponseEntity<Object> handleExceptionInternal(
+      Exception ex,
+      Object body,
+      HttpHeaders headers,
+      HttpStatusCode statusCode,
+      WebRequest request) {
+    HttpStatus status = HttpStatus.valueOf(statusCode.value());
+    String detail = body instanceof ProblemDetail problem ? problem.getDetail() : null;
+    String message = detail != null ? detail : status.getReasonPhrase();
+    ApiError error = ApiError.of(status.value(), status.name(), message);
+    return ResponseEntity.status(statusCode).headers(headers).body(error);
   }
 }
