@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.7
+
+- Add `GET /loans/overdue` to list loans not returned within 14 days (configurable through `library.loan-period`), each with the book, member, borrow time and days overdue.
+
 ## 0.1.6
 
 - Add the run and test steps, a title and the video line to the README.
