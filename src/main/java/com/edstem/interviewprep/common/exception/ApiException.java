@@ -1,6 +1,7 @@
 package com.edstem.interviewprep.common.exception;
 
 import lombok.Getter;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 
 @Getter
@@ -19,5 +20,9 @@ public abstract class ApiException extends RuntimeException {
     super(message, cause);
     this.status = status;
     this.errorCode = errorCode;
+  }
+
+  public HttpHeaders headers() {
+    return new HttpHeaders();
   }
 }
