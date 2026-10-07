@@ -4,6 +4,10 @@
 
 - Keep the Q4 rate limit correct when several app instances run: request counts now live in a shared database table updated with atomic conditional statements, so copies pointed at the same database share one limit. `ratelimit.store=memory` keeps the single-instance in-memory counter.
 
+## 0.1.7
+
+- Add `GET /loans/overdue` to list loans not returned within 14 days (configurable through `library.loan-period`), each with the book, member, borrow time and days overdue.
+
 ## 0.1.6
 
 - Add the run and test steps, a title and the video line to the README.
