@@ -4,6 +4,10 @@
 
 - Keep the Q4 rate limit correct when several app instances run: request counts now live in a shared database table updated with atomic conditional statements, so copies pointed at the same database share one limit. `ratelimit.store=memory` keeps the single-instance in-memory counter.
 
+## 0.1.8
+
+- Add Q2 optional extra: download the monthly spending summary as a CSV file from `GET /expenses/summary/csv?month=YYYY-MM`, with one row per category, an overall total row, exact two-decimal amounts and a file name that includes the month.
+
 ## 0.1.7
 
 - Add `GET /loans/overdue` to list loans not returned within 14 days (configurable through `library.loan-period`), each with the book, member, borrow time and days overdue.
