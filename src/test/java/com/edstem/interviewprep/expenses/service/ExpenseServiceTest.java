@@ -9,14 +9,17 @@ import static org.mockito.Mockito.when;
 
 import com.edstem.interviewprep.expenses.dto.request.ExpenseRequest;
 import com.edstem.interviewprep.expenses.dto.response.ExpenseResponse;
+import com.edstem.interviewprep.expenses.dto.response.MonthlySummaryResponse;
 import com.edstem.interviewprep.expenses.entity.Expense;
 import com.edstem.interviewprep.expenses.entity.ExpenseCategory;
 import com.edstem.interviewprep.expenses.exception.ExpenseNotFoundException;
 import com.edstem.interviewprep.expenses.exception.InvalidDateRangeException;
 import com.edstem.interviewprep.expenses.mapper.ExpenseMapper;
+import com.edstem.interviewprep.expenses.repository.CategoryTotal;
 import com.edstem.interviewprep.expenses.repository.ExpenseRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
@@ -130,6 +133,64 @@ class ExpenseServiceTest {
     assertThrows(ExpenseNotFoundException.class, () -> service.delete(99L));
 
     verify(repository, never()).delete(any(Expense.class));
+  }
+
+  @Test
+  void summarizeAddsCategoryTotalsExactly() {
+    when(repository.sumByCategory(date(2026, 3, 1), date(2026, 3, 31)))
+        .thenReturn(
+            List.of(
+                new Total(ExpenseCategory.FOOD, new BigDecimal("0.10")),
+                new Total(ExpenseCategory.TRAVEL, new BigDecimal("0.20"))));
+
+    MonthlySummaryResponse summary = service.summarize(YearMonth.of(2026, 3));
+
+    assertThat(summary.month()).isEqualTo(YearMonth.of(2026, 3));
+    assertThat(summary.totals().get(ExpenseCategory.FOOD)).isEqualTo(new BigDecimal("0.10"));
+    assertThat(summary.totals().get(ExpenseCategory.TRAVEL)).isEqualTo(new BigDecimal("0.20"));
+    assertThat(summary.total()).isEqualTo(new BigDecimal("0.30"));
+  }
+
+  @Test
+  void summarizeListsEveryCategoryWithZeroForEmptyMonth() {
+    when(repository.sumByCategory(date(2026, 3, 1), date(2026, 3, 31))).thenReturn(List.of());
+
+    MonthlySummaryResponse summary = service.summarize(YearMonth.of(2026, 3));
+
+    assertThat(summary.totals().keySet()).containsExactly(ExpenseCategory.values());
+    assertThat(summary.totals().values()).allMatch(amount -> amount.equals(new BigDecimal("0.00")));
+    assertThat(summary.total()).isEqualTo(new BigDecimal("0.00"));
+  }
+
+  @Test
+  void summarizeCoversFirstToLastDayOfLeapFebruary() {
+    when(repository.sumByCategory(date(2028, 2, 1), date(2028, 2, 29))).thenReturn(List.of());
+
+    service.summarize(YearMonth.of(2028, 2));
+
+    verify(repository).sumByCategory(date(2028, 2, 1), date(2028, 2, 29));
+  }
+
+  @Test
+  void summarizeCoversFirstToLastDayOfThirtyDayMonth() {
+    when(repository.sumByCategory(date(2026, 4, 1), date(2026, 4, 30))).thenReturn(List.of());
+
+    service.summarize(YearMonth.of(2026, 4));
+
+    verify(repository).sumByCategory(date(2026, 4, 1), date(2026, 4, 30));
+  }
+
+  private record Total(ExpenseCategory category, BigDecimal total) implements CategoryTotal {
+
+    @Override
+    public ExpenseCategory getCategory() {
+      return category;
+    }
+
+    @Override
+    public BigDecimal getTotal() {
+      return total;
+    }
   }
 
   private static LocalDate date(int year, int month, int day) {

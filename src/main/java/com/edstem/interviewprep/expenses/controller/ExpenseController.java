@@ -2,10 +2,12 @@ package com.edstem.interviewprep.expenses.controller;
 
 import com.edstem.interviewprep.expenses.dto.request.ExpenseRequest;
 import com.edstem.interviewprep.expenses.dto.response.ExpenseResponse;
+import com.edstem.interviewprep.expenses.dto.response.MonthlySummaryResponse;
 import com.edstem.interviewprep.expenses.entity.ExpenseCategory;
 import com.edstem.interviewprep.expenses.service.ExpenseService;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -40,6 +42,12 @@ public class ExpenseController {
       @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
       @RequestParam(required = false) ExpenseCategory category) {
     return service.list(from, to, category);
+  }
+
+  @GetMapping("/summary")
+  public MonthlySummaryResponse summary(
+      @RequestParam @DateTimeFormat(pattern = "yyyy-MM") YearMonth month) {
+    return service.summarize(month);
   }
 
   @PutMapping("/{id}")

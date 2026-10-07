@@ -12,13 +12,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.edstem.interviewprep.expenses.dto.response.ExpenseResponse;
+import com.edstem.interviewprep.expenses.dto.response.MonthlySummaryResponse;
 import com.edstem.interviewprep.expenses.entity.ExpenseCategory;
 import com.edstem.interviewprep.expenses.exception.ExpenseNotFoundException;
 import com.edstem.interviewprep.expenses.exception.InvalidDateRangeException;
 import com.edstem.interviewprep.expenses.service.ExpenseService;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
+import java.util.EnumMap;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -145,6 +149,42 @@ class ExpenseControllerTest {
         .perform(get("/expenses").param("from", "2026-03-31").param("to", "2026-03-01"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.errorCode").value("INVALID_DATE_RANGE"));
+  }
+
+  @Test
+  void summaryReturnsTotalsPerCategoryAndOverall() throws Exception {
+    Map<ExpenseCategory, BigDecimal> totals = new EnumMap<>(ExpenseCategory.class);
+    totals.put(ExpenseCategory.FOOD, new BigDecimal("0.10"));
+    totals.put(ExpenseCategory.TRAVEL, new BigDecimal("0.20"));
+    totals.put(ExpenseCategory.BILLS, new BigDecimal("0.00"));
+    totals.put(ExpenseCategory.OTHER, new BigDecimal("0.00"));
+    when(service.summarize(YearMonth.of(2026, 3)))
+        .thenReturn(
+            new MonthlySummaryResponse(YearMonth.of(2026, 3), totals, new BigDecimal("0.30")));
+
+    mockMvc
+        .perform(get("/expenses/summary").param("month", "2026-03"))
+        .andExpect(status().isOk())
+        .andExpect(jsonPath("$.month").value("2026-03"))
+        .andExpect(jsonPath("$.totals.FOOD").value(0.10))
+        .andExpect(jsonPath("$.totals.TRAVEL").value(0.20))
+        .andExpect(jsonPath("$.total").value(0.30));
+  }
+
+  @Test
+  void summaryRejectsInvalidMonth() throws Exception {
+    mockMvc
+        .perform(get("/expenses/summary").param("month", "2026-13"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("INVALID_PARAMETER"));
+  }
+
+  @Test
+  void summaryRequiresMonth() throws Exception {
+    mockMvc
+        .perform(get("/expenses/summary"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("MISSING_PARAMETER"));
   }
 
   @Test
