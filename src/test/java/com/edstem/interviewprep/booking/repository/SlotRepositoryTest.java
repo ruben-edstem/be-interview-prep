@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.edstem.interviewprep.booking.entity.Doctor;
 import com.edstem.interviewprep.booking.entity.Slot;
 import com.edstem.interviewprep.booking.entity.SlotStatus;
+import com.edstem.interviewprep.booking.entity.WaitingEntry;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -177,6 +178,88 @@ class SlotRepositoryTest {
 
     assertThat(overlapping).isTrue();
     assertThat(separate).isFalse();
+  }
+
+  @Test
+  void holdIsRefusedWhileSomeoneIsWaitingForTheSlot() {
+    entityManager.persistAndFlush(WaitingEntry.waiting(nineAm, "Asha"));
+
+    int claimed = slotRepository.hold(nineAm.getId(), 7L, NOW, NOW.plus(HOLD));
+
+    assertThat(claimed).isZero();
+  }
+
+  @Test
+  void offerClaimsTheSlotEvenWhenPatientsAreWaiting() {
+    entityManager.persistAndFlush(WaitingEntry.waiting(nineAm, "Asha"));
+
+    int claimed = slotRepository.offer(nineAm.getId(), 7L, NOW, NOW.plus(HOLD));
+
+    Slot reloaded = slotRepository.findById(nineAm.getId()).orElseThrow();
+    assertThat(claimed).isEqualTo(1);
+    assertThat(reloaded.getStatus()).isEqualTo(SlotStatus.HELD);
+    assertThat(reloaded.getActiveBookingId()).isEqualTo(7L);
+  }
+
+  @Test
+  void offerIsRefusedWhileAnotherHoldIsStillRunning() {
+    slotRepository.offer(nineAm.getId(), 7L, NOW, NOW.plus(HOLD));
+
+    int claimed =
+        slotRepository.offer(
+            nineAm.getId(), 8L, NOW.plusSeconds(60), NOW.plus(HOLD).plusSeconds(60));
+
+    assertThat(claimed).isZero();
+  }
+
+  @Test
+  void findAvailableHidesSlotsThatHaveAWaitingList() {
+    entityManager.persistAndFlush(WaitingEntry.waiting(nineAm, "Asha"));
+
+    List<Slot> available = findForDay(DAY, NOW);
+
+    assertThat(available).extracting(Slot::getId).containsExactly(nineThirty.getId());
+  }
+
+  @Test
+  void isAvailableIsTrueOnlyForAClaimableSlotWithoutAWaitingList() {
+    slotRepository.hold(nineThirty.getId(), 7L, NOW, NOW.plus(HOLD));
+    entityManager.persistAndFlush(WaitingEntry.waiting(nineAm, "Asha"));
+    Slot tenAm = entityManager.persist(slotAt(doctor, DAY.atTime(10, 0)));
+
+    boolean free = slotRepository.isAvailable(tenAm.getId(), NOW);
+    boolean withWaiter = slotRepository.isAvailable(nineAm.getId(), NOW);
+    boolean held = slotRepository.isAvailable(nineThirty.getId(), NOW.plusSeconds(60));
+    boolean heldButExpired = slotRepository.isAvailable(nineThirty.getId(), NOW.plus(HOLD));
+
+    assertThat(free).isTrue();
+    assertThat(withWaiter).isFalse();
+    assertThat(held).isFalse();
+    assertThat(heldButExpired).isTrue();
+  }
+
+  @Test
+  void freeHoldReturnsOnlyTheHoldOfThatBookingToTheSlot() {
+    slotRepository.hold(nineAm.getId(), 7L, NOW, NOW.plus(HOLD));
+
+    int wrongBooking = slotRepository.freeHold(nineAm.getId(), 8L);
+    int rightBooking = slotRepository.freeHold(nineAm.getId(), 7L);
+
+    Slot reloaded = slotRepository.findById(nineAm.getId()).orElseThrow();
+    assertThat(wrongBooking).isZero();
+    assertThat(rightBooking).isEqualTo(1);
+    assertThat(reloaded.getStatus()).isEqualTo(SlotStatus.AVAILABLE);
+    assertThat(reloaded.getActiveBookingId()).isNull();
+  }
+
+  @Test
+  void freeHoldIsRefusedOnABookedSlot() {
+    slotRepository.hold(nineAm.getId(), 7L, NOW, NOW.plus(HOLD));
+    slotRepository.book(nineAm.getId(), 7L);
+
+    int freed = slotRepository.freeHold(nineAm.getId(), 7L);
+
+    assertThat(freed).isZero();
   }
 
   private List<Slot> findForDay(LocalDate day, Instant now) {

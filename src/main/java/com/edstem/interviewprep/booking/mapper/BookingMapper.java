@@ -3,9 +3,11 @@ package com.edstem.interviewprep.booking.mapper;
 import com.edstem.interviewprep.booking.dto.response.BookingResponse;
 import com.edstem.interviewprep.booking.dto.response.DoctorResponse;
 import com.edstem.interviewprep.booking.dto.response.SlotResponse;
+import com.edstem.interviewprep.booking.dto.response.WaitingEntryResponse;
 import com.edstem.interviewprep.booking.entity.Booking;
 import com.edstem.interviewprep.booking.entity.Doctor;
 import com.edstem.interviewprep.booking.entity.Slot;
+import com.edstem.interviewprep.booking.entity.WaitingEntry;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -27,5 +29,10 @@ public class BookingMapper {
         booking.getPatientName(),
         booking.getStatus(),
         booking.getExpiresAt());
+  }
+
+  public WaitingEntryResponse toResponse(WaitingEntry entry) {
+    return new WaitingEntryResponse(
+        entry.getId(), entry.getSlot().getId(), entry.getPatientName(), entry.getStatus());
   }
 }
