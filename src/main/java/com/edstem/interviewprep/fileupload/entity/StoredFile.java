@@ -41,6 +41,9 @@ public class StoredFile {
   @Column(nullable = false, unique = true, updatable = false)
   private String storageKey;
 
+  @Column(unique = true, updatable = false)
+  private String thumbnailKey;
+
   @CreationTimestamp
   @Column(nullable = false, updatable = false)
   private Instant uploadedAt;
