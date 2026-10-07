@@ -4,6 +4,10 @@
 
 - Add the Q5 waiting list: patients can join and leave the waiting list of a taken slot, and a cancelled booking is offered to the longest-waiting patient as a 5-minute hold with a logged notification. An offer that is not confirmed passes to the next patient, and new patients cannot take a slot that has a waiting list.
 
+## 0.1.10
+
+- Keep the Q4 rate limit correct when several app instances run: request counts now live in a shared database table updated with atomic conditional statements, so copies pointed at the same database share one limit. `ratelimit.store=memory` keeps the single-instance in-memory counter.
+
 ## 0.1.9
 
 - Add thumbnails for uploaded JPEG and PNG images: a proportional preview of at most 200 pixels on the longest side, fetched with `GET /files/{id}/thumbnail`, removed with the file, and left out (without failing the upload) when it cannot be created. PDFs get none and return a clear error.

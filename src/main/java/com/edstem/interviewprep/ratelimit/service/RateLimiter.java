@@ -3,8 +3,6 @@ package com.edstem.interviewprep.ratelimit.service;
 import com.edstem.interviewprep.ratelimit.config.RateLimitProperties;
 import com.edstem.interviewprep.ratelimit.exception.RateLimitExceededException;
 import java.time.Clock;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -15,7 +13,7 @@ public class RateLimiter {
 
   private final RateLimitProperties properties;
   private final Clock clock;
-  private final ConcurrentMap<String, Window> windows = new ConcurrentHashMap<>();
+  private final RateLimitStore store;
   private final AtomicLong nextSweepMillis = new AtomicLong();
 
   public void checkRequest(String apiKey) {
@@ -23,43 +21,23 @@ public class RateLimiter {
     long windowMillis = properties.window().toMillis();
     sweepExpired(now, windowMillis);
 
-    Window window = windows.compute(apiKey, (key, current) -> next(current, now, windowMillis));
+    RateLimitDecision decision = store.record(apiKey, now, properties.maxRequests(), windowMillis);
 
-    if (window.count() > properties.maxRequests()) {
-      throw new RateLimitExceededException(retryAfterSeconds(window, now, windowMillis));
+    if (!decision.allowed()) {
+      throw new RateLimitExceededException(
+          retryAfterSeconds(decision.windowStartMillis(), now, windowMillis));
     }
   }
 
-  int trackedKeyCount() {
-    return windows.size();
-  }
-
-  private Window next(Window current, long now, long windowMillis) {
-    if (current == null || isExpired(current, now, windowMillis)) {
-      return new Window(now, 1);
-    }
-    return new Window(current.startMillis(), Math.min(current.count() + 1, limitPlusOne()));
-  }
-
-  private int limitPlusOne() {
-    return properties.maxRequests() + 1;
-  }
-
-  private boolean isExpired(Window window, long now, long windowMillis) {
-    return now - window.startMillis() >= windowMillis;
-  }
-
-  private long retryAfterSeconds(Window window, long now, long windowMillis) {
-    long remainingMillis = window.startMillis() + windowMillis - now;
+  private long retryAfterSeconds(long windowStartMillis, long now, long windowMillis) {
+    long remainingMillis = windowStartMillis + windowMillis - now;
     return Math.max(1, (remainingMillis + 999) / 1000);
   }
 
   private void sweepExpired(long now, long windowMillis) {
     long due = nextSweepMillis.get();
     if (now >= due && nextSweepMillis.compareAndSet(due, now + windowMillis)) {
-      windows.values().removeIf(window -> isExpired(window, now, windowMillis));
+      store.deleteExpired(now - windowMillis);
     }
   }
-
-  private record Window(long startMillis, int count) {}
 }

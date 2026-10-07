@@ -3,6 +3,12 @@ package com.edstem.interviewprep.ratelimit.service;
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.edstem.interviewprep.ratelimit.config.RateLimitProperties;
@@ -27,7 +33,7 @@ class RateLimiterTest {
 
   @BeforeEach
   void setUp() {
-    rateLimiter = new RateLimiter(new RateLimitProperties(MAX_REQUESTS, WINDOW), clock);
+    rateLimiter = limiter(MAX_REQUESTS, new InMemoryRateLimitStore());
   }
 
   @Test
@@ -46,7 +52,7 @@ class RateLimiterTest {
   @Test
   void keepsRejectingUntilTheWindowEnds() {
     when(clock.millis()).thenReturn(0L, 0L, 59_000L, 59_999L);
-    rateLimiter = new RateLimiter(new RateLimitProperties(2, WINDOW), clock);
+    rateLimiter = limiter(2, new InMemoryRateLimitStore());
     rateLimiter.checkRequest("client-a");
     rateLimiter.checkRequest("client-a");
 
@@ -62,7 +68,7 @@ class RateLimiterTest {
   @Test
   void allowsRequestsAgainOnceTheWindowHasPassed() {
     when(clock.millis()).thenReturn(0L, 0L, 0L, 60_000L);
-    rateLimiter = new RateLimiter(new RateLimitProperties(2, WINDOW), clock);
+    rateLimiter = limiter(2, new InMemoryRateLimitStore());
     rateLimiter.checkRequest("client-a");
     rateLimiter.checkRequest("client-a");
     assertThrows(RateLimitExceededException.class, () -> rateLimiter.checkRequest("client-a"));
@@ -84,14 +90,38 @@ class RateLimiterTest {
   }
 
   @Test
-  void forgetsKeysWhoseWindowHasExpired() {
-    when(clock.millis()).thenReturn(0L, 0L, 120_000L);
+  void sweepsExpiredCountsOncePerWindow() {
+    RateLimitStore store = mock(RateLimitStore.class);
+    when(store.record(anyString(), anyLong(), anyInt(), anyLong()))
+        .thenReturn(RateLimitDecision.accepted());
+    when(clock.millis()).thenReturn(0L, 1_000L, 60_000L);
+    rateLimiter = limiter(MAX_REQUESTS, store);
+
     rateLimiter.checkRequest("client-a");
-    rateLimiter.checkRequest("client-b");
-    assertEquals(2, rateLimiter.trackedKeyCount());
+    rateLimiter.checkRequest("client-a");
+    rateLimiter.checkRequest("client-a");
 
-    rateLimiter.checkRequest("client-c");
+    verify(store, times(3)).record(anyString(), anyLong(), anyInt(), anyLong());
+    verify(store).deleteExpired(-60_000L);
+    verify(store).deleteExpired(0L);
+    verify(store, times(2)).deleteExpired(anyLong());
+  }
 
-    assertEquals(1, rateLimiter.trackedKeyCount());
+  @Test
+  void tellsTheClientHowLongToWaitFromTheStoredWindowStart() {
+    RateLimitStore store = mock(RateLimitStore.class);
+    when(store.record("client-a", 20_000L, MAX_REQUESTS, 60_000L))
+        .thenReturn(RateLimitDecision.rejected(5_000L));
+    when(clock.millis()).thenReturn(20_000L);
+    rateLimiter = limiter(MAX_REQUESTS, store);
+
+    RateLimitExceededException exception =
+        assertThrows(RateLimitExceededException.class, () -> rateLimiter.checkRequest("client-a"));
+
+    assertEquals(45, exception.getRetryAfterSeconds());
+  }
+
+  private RateLimiter limiter(int maxRequests, RateLimitStore store) {
+    return new RateLimiter(new RateLimitProperties(maxRequests, WINDOW), clock, store);
   }
 }
