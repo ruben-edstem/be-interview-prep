@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.11
+
+- Add the Q5 waiting list: patients can join and leave the waiting list of a taken slot, and a cancelled booking is offered to the longest-waiting patient as a 5-minute hold with a logged notification. An offer that is not confirmed passes to the next patient, and new patients cannot take a slot that has a waiting list.
+
 ## 0.1.6
 
 - Add the run and test steps, a title and the video line to the README.
