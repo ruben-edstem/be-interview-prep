@@ -4,4 +4,4 @@
 | 2 | Expense Tracker | [PR](https://github.com/ruben-edstem/be-interview-prep/pull/7) |
 | 3 | File Upload Service | [PR](https://github.com/ruben-edstem/be-interview-prep/pull/8) |
 | 4 | API Rate Limiting | [PR](https://github.com/ruben-edstem/be-interview-prep/pull/9) |
-| 5 | Appointment Booking | |
+| 5 | Appointment Booking | [PR](https://github.com/ruben-edstem/be-interview-prep/pull/10) |
