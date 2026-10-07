@@ -8,6 +8,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.edstem.interviewprep.expenses.dto.request.ExpenseRequest;
+import com.edstem.interviewprep.expenses.dto.response.CsvFile;
 import com.edstem.interviewprep.expenses.dto.response.ExpenseResponse;
 import com.edstem.interviewprep.expenses.dto.response.MonthlySummaryResponse;
 import com.edstem.interviewprep.expenses.entity.Expense;
@@ -15,6 +16,7 @@ import com.edstem.interviewprep.expenses.entity.ExpenseCategory;
 import com.edstem.interviewprep.expenses.exception.ExpenseNotFoundException;
 import com.edstem.interviewprep.expenses.exception.InvalidDateRangeException;
 import com.edstem.interviewprep.expenses.mapper.ExpenseMapper;
+import com.edstem.interviewprep.expenses.mapper.MonthlySummaryCsvMapper;
 import com.edstem.interviewprep.expenses.repository.CategoryTotal;
 import com.edstem.interviewprep.expenses.repository.ExpenseRepository;
 import java.math.BigDecimal;
@@ -37,7 +39,7 @@ class ExpenseServiceTest {
 
   @BeforeEach
   void setUp() {
-    service = new ExpenseService(repository, new ExpenseMapper());
+    service = new ExpenseService(repository, new ExpenseMapper(), new MonthlySummaryCsvMapper());
   }
 
   @Test
@@ -178,6 +180,37 @@ class ExpenseServiceTest {
     service.summarize(YearMonth.of(2026, 4));
 
     verify(repository).sumByCategory(date(2026, 4, 1), date(2026, 4, 30));
+  }
+
+  @Test
+  void exportSummaryNamesFileAfterMonthAndWritesExactTotals() {
+    when(repository.sumByCategory(date(2026, 3, 1), date(2026, 3, 31)))
+        .thenReturn(
+            List.of(
+                new Total(ExpenseCategory.FOOD, new BigDecimal("0.10")),
+                new Total(ExpenseCategory.TRAVEL, new BigDecimal("0.20"))));
+
+    CsvFile file = service.exportSummary(YearMonth.of(2026, 3));
+
+    assertThat(file.fileName()).isEqualTo("expense-summary-2026-03.csv");
+    assertThat(file.content())
+        .isEqualTo(
+            "category,total\r\n"
+                + "FOOD,0.10\r\n"
+                + "TRAVEL,0.20\r\n"
+                + "BILLS,0.00\r\n"
+                + "OTHER,0.00\r\n"
+                + "TOTAL,0.30\r\n");
+  }
+
+  @Test
+  void exportSummaryOfEmptyMonthIsAllZeros() {
+    when(repository.sumByCategory(date(2028, 2, 1), date(2028, 2, 29))).thenReturn(List.of());
+
+    CsvFile file = service.exportSummary(YearMonth.of(2028, 2));
+
+    assertThat(file.fileName()).isEqualTo("expense-summary-2028-02.csv");
+    assertThat(file.content()).endsWith("OTHER,0.00\r\nTOTAL,0.00\r\n");
   }
 
   private record Total(ExpenseCategory category, BigDecimal total) implements CategoryTotal {

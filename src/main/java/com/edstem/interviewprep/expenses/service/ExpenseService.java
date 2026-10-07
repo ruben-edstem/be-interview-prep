@@ -1,6 +1,7 @@
 package com.edstem.interviewprep.expenses.service;
 
 import com.edstem.interviewprep.expenses.dto.request.ExpenseRequest;
+import com.edstem.interviewprep.expenses.dto.response.CsvFile;
 import com.edstem.interviewprep.expenses.dto.response.ExpenseResponse;
 import com.edstem.interviewprep.expenses.dto.response.MonthlySummaryResponse;
 import com.edstem.interviewprep.expenses.entity.Expense;
@@ -8,6 +9,7 @@ import com.edstem.interviewprep.expenses.entity.ExpenseCategory;
 import com.edstem.interviewprep.expenses.exception.ExpenseNotFoundException;
 import com.edstem.interviewprep.expenses.exception.InvalidDateRangeException;
 import com.edstem.interviewprep.expenses.mapper.ExpenseMapper;
+import com.edstem.interviewprep.expenses.mapper.MonthlySummaryCsvMapper;
 import com.edstem.interviewprep.expenses.repository.ExpenseRepository;
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -29,6 +31,7 @@ public class ExpenseService {
 
   private final ExpenseRepository repository;
   private final ExpenseMapper mapper;
+  private final MonthlySummaryCsvMapper csvMapper;
 
   @Transactional
   public ExpenseResponse create(ExpenseRequest request) {
@@ -57,6 +60,12 @@ public class ExpenseService {
             categoryTotal -> totals.put(categoryTotal.getCategory(), categoryTotal.getTotal()));
     BigDecimal overall = totals.values().stream().reduce(ZERO_AMOUNT, BigDecimal::add);
     return new MonthlySummaryResponse(month, totals, overall);
+  }
+
+  @Transactional(readOnly = true)
+  public CsvFile exportSummary(YearMonth month) {
+    String content = csvMapper.toCsv(summarize(month));
+    return new CsvFile("expense-summary-" + month + ".csv", content);
   }
 
   @Transactional
