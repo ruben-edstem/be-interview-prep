@@ -46,7 +46,7 @@ class FileControllerTest {
     when(fileService.upload(any()))
         .thenReturn(
             new FileResponse(
-                1L, "photo.png", "image/png", 64, Instant.parse("2026-01-01T10:00:00Z")));
+                1L, "photo.png", "image/png", 64, Instant.parse("2026-01-01T10:00:00Z"), true));
 
     mockMvc
         .perform(multipart("/files").file(png))
@@ -55,7 +55,8 @@ class FileControllerTest {
         .andExpect(jsonPath("$.originalName").value("photo.png"))
         .andExpect(jsonPath("$.contentType").value("image/png"))
         .andExpect(jsonPath("$.size").value(64))
-        .andExpect(jsonPath("$.uploadedAt").value("2026-01-01T10:00:00Z"));
+        .andExpect(jsonPath("$.uploadedAt").value("2026-01-01T10:00:00Z"))
+        .andExpect(jsonPath("$.thumbnailAvailable").value(true));
   }
 
   @Test
@@ -104,7 +105,8 @@ class FileControllerTest {
   @Test
   void listReturnsFileRecords() throws Exception {
     when(fileService.list())
-        .thenReturn(List.of(new FileResponse(2L, "doc.pdf", "application/pdf", 10, Instant.EPOCH)));
+        .thenReturn(
+            List.of(new FileResponse(2L, "doc.pdf", "application/pdf", 10, Instant.EPOCH, false)));
 
     mockMvc
         .perform(get("/files"))
@@ -112,7 +114,8 @@ class FileControllerTest {
         .andExpect(jsonPath("$[0].originalName").value("doc.pdf"))
         .andExpect(jsonPath("$[0].contentType").value("application/pdf"))
         .andExpect(jsonPath("$[0].size").value(10))
-        .andExpect(jsonPath("$[0].uploadedAt").exists());
+        .andExpect(jsonPath("$[0].uploadedAt").exists())
+        .andExpect(jsonPath("$[0].thumbnailAvailable").value(false));
   }
 
   @Test

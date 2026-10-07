@@ -1,7 +1,9 @@
 package com.edstem.interviewprep.fileupload.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -15,6 +17,7 @@ import com.edstem.interviewprep.fileupload.dto.response.FileDownload;
 import com.edstem.interviewprep.fileupload.dto.response.FileResponse;
 import com.edstem.interviewprep.fileupload.entity.FileType;
 import com.edstem.interviewprep.fileupload.entity.StoredFile;
+import com.edstem.interviewprep.fileupload.exception.FileStorageException;
 import com.edstem.interviewprep.fileupload.exception.FileTooLargeException;
 import com.edstem.interviewprep.fileupload.exception.InvalidFileException;
 import com.edstem.interviewprep.fileupload.exception.StoredFileNotFoundException;
@@ -45,6 +48,7 @@ class FileServiceTest {
 
   @Mock private StoredFileRepository repository;
   @Mock private FileStorageService storage;
+  @Mock private ThumbnailGenerator generator;
 
   private FileService service;
 
@@ -52,7 +56,7 @@ class FileServiceTest {
   void setUp() {
     FileUploadProperties properties =
         new FileUploadProperties(Path.of("unused"), DataSize.ofMegabytes(5));
-    service = new FileService(repository, storage, properties);
+    service = new FileService(repository, storage, properties, generator);
   }
 
   @Test
@@ -248,6 +252,101 @@ class FileServiceTest {
     assertThrows(InvalidFileException.class, () -> service.upload(unreadable));
 
     verifyNoInteractions(storage, repository);
+  }
+
+  @Test
+  void uploadStoresAThumbnailOfAnImage() {
+    byte[] thumbnail = {1, 2, 3};
+    MockMultipartFile file = new MockMultipartFile("file", "photo.png", "image/png", TestFiles.PNG);
+    when(storage.store(file)).thenReturn("key-1");
+    when(generator.create(FileType.PNG, TestFiles.PNG)).thenReturn(Optional.of(thumbnail));
+    when(storage.storeBytes(thumbnail)).thenReturn("thumb-1");
+    when(repository.saveAndFlush(any(StoredFile.class))).thenAnswer(call -> call.getArgument(0));
+
+    FileResponse response = service.upload(file);
+
+    ArgumentCaptor<StoredFile> saved = ArgumentCaptor.forClass(StoredFile.class);
+    verify(repository).saveAndFlush(saved.capture());
+    assertTrue(response.thumbnailAvailable());
+    assertEquals("thumb-1", saved.getValue().getThumbnailKey());
+  }
+
+  @Test
+  void uploadOfAPdfCreatesNoThumbnail() {
+    MockMultipartFile file =
+        new MockMultipartFile("file", "doc.pdf", "application/pdf", TestFiles.PDF);
+    when(storage.store(file)).thenReturn("key-1");
+    when(repository.saveAndFlush(any(StoredFile.class))).thenAnswer(call -> call.getArgument(0));
+
+    FileResponse response = service.upload(file);
+
+    assertFalse(response.thumbnailAvailable());
+    verifyNoInteractions(generator);
+    verify(storage, never()).storeBytes(any());
+  }
+
+  @Test
+  void uploadStillSucceedsWhenTheThumbnailCannotBeCreated() {
+    MockMultipartFile file = new MockMultipartFile("file", "photo.png", "image/png", TestFiles.PNG);
+    when(storage.store(file)).thenReturn("key-1");
+    when(generator.create(FileType.PNG, TestFiles.PNG)).thenReturn(Optional.empty());
+    when(repository.saveAndFlush(any(StoredFile.class))).thenAnswer(call -> call.getArgument(0));
+
+    FileResponse response = service.upload(file);
+
+    assertFalse(response.thumbnailAvailable());
+    verify(storage, never()).storeBytes(any());
+  }
+
+  @Test
+  void uploadStillSucceedsWhenTheThumbnailCannotBeStored() {
+    byte[] thumbnail = {1, 2, 3};
+    MockMultipartFile file = new MockMultipartFile("file", "photo.png", "image/png", TestFiles.PNG);
+    when(storage.store(file)).thenReturn("key-1");
+    when(generator.create(FileType.PNG, TestFiles.PNG)).thenReturn(Optional.of(thumbnail));
+    when(storage.storeBytes(thumbnail)).thenThrow(new FileStorageException("disk full"));
+    when(repository.saveAndFlush(any(StoredFile.class))).thenAnswer(call -> call.getArgument(0));
+
+    FileResponse response = service.upload(file);
+
+    assertFalse(response.thumbnailAvailable());
+    verify(storage, never()).delete(any());
+  }
+
+  @Test
+  void uploadRemovesTheFileAndItsThumbnailWhenTheRecordCannotBeSaved() {
+    byte[] thumbnail = {1, 2, 3};
+    MockMultipartFile file = new MockMultipartFile("file", "photo.png", "image/png", TestFiles.PNG);
+    when(storage.store(file)).thenReturn("key-1");
+    when(generator.create(FileType.PNG, TestFiles.PNG)).thenReturn(Optional.of(thumbnail));
+    when(storage.storeBytes(thumbnail)).thenReturn("thumb-1");
+    when(repository.saveAndFlush(any(StoredFile.class)))
+        .thenThrow(new IllegalStateException("db down"));
+
+    assertThrows(IllegalStateException.class, () -> service.upload(file));
+
+    verify(storage).delete("key-1");
+    verify(storage).delete("thumb-1");
+  }
+
+  @Test
+  void deleteRemovesTheThumbnailAsWell() {
+    StoredFile stored =
+        StoredFile.builder()
+            .id(1L)
+            .originalName("photo.png")
+            .fileType(FileType.PNG)
+            .sizeBytes(TestFiles.PNG.length)
+            .storageKey("key-1")
+            .thumbnailKey("thumb-1")
+            .build();
+    when(repository.findById(1L)).thenReturn(Optional.of(stored));
+
+    service.delete(1L);
+
+    verify(repository).delete(stored);
+    verify(storage).delete("key-1");
+    verify(storage).delete("thumb-1");
   }
 
   private StoredFile storedFile() {
