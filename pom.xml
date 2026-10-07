@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.edstem</groupId>
     <artifactId>be-interview-prep</artifactId>
-    <version>0.1.5</version>
+    <version>0.1.6</version>
     <name>be-interview-prep</name>
     <description>Backend Interview Prep Assignment Set 2</description>
     <properties>

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.6
+
+- Add the run and test steps, a title and the video line to the README.
+
 ## 0.1.5
 
 - Add Q5 Appointment Booking: doctors with 30-minute slots, a 5-minute hold then confirm flow, cancellation that frees the slot, and a confirmation notification sent after the booking is saved. Double-booking is prevented by atomic conditional updates and proven by a 20-patient concurrency test.
