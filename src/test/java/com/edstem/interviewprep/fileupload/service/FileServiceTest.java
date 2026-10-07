@@ -2,9 +2,11 @@ package com.edstem.interviewprep.fileupload.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -25,6 +27,7 @@ import com.edstem.interviewprep.fileupload.exception.StoredFileNotFoundException
 import com.edstem.interviewprep.fileupload.exception.ThumbnailNotAvailableException;
 import com.edstem.interviewprep.fileupload.exception.UnsupportedFileTypeException;
 import com.edstem.interviewprep.fileupload.repository.StoredFileRepository;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
@@ -374,6 +377,43 @@ class FileServiceTest {
     when(repository.findById(9L)).thenReturn(Optional.empty());
 
     assertThrows(StoredFileNotFoundException.class, () -> service.thumbnail(9L));
+  }
+
+  @Test
+  void uploadStillRemovesTheThumbnailWhenRemovingTheFileFails() {
+    byte[] thumbnail = {1, 2, 3};
+    MockMultipartFile file = new MockMultipartFile("file", "photo.png", "image/png", TestFiles.PNG);
+    IllegalStateException saveFailure = new IllegalStateException("db down");
+    FileStorageException deleteFailure = new FileStorageException("cannot delete");
+    when(storage.store(file)).thenReturn("key-1");
+    when(generator.create(FileType.PNG, TestFiles.PNG)).thenReturn(Optional.of(thumbnail));
+    when(storage.storeBytes(thumbnail)).thenReturn("thumb-1");
+    when(repository.saveAndFlush(any(StoredFile.class))).thenThrow(saveFailure);
+    doThrow(deleteFailure).when(storage).delete("key-1");
+
+    IllegalStateException thrown =
+        assertThrows(IllegalStateException.class, () -> service.upload(file));
+
+    assertSame(saveFailure, thrown);
+    assertSame(deleteFailure, thrown.getSuppressed()[0]);
+    verify(storage).delete("thumb-1");
+  }
+
+  @Test
+  void uploadStillSucceedsWhenTheImageBytesCannotBeReadForTheThumbnail() throws IOException {
+    MultipartFile file = mock(MultipartFile.class);
+    when(file.getOriginalFilename()).thenReturn("photo.png");
+    when(file.isEmpty()).thenReturn(false);
+    when(file.getSize()).thenReturn((long) TestFiles.PNG.length);
+    when(file.getInputStream()).thenReturn(new ByteArrayInputStream(TestFiles.PNG));
+    when(file.getBytes()).thenThrow(new IOException("disk error"));
+    when(storage.store(file)).thenReturn("key-1");
+    when(repository.saveAndFlush(any(StoredFile.class))).thenAnswer(call -> call.getArgument(0));
+
+    FileResponse response = service.upload(file);
+
+    assertFalse(response.thumbnailAvailable());
+    verifyNoInteractions(generator);
   }
 
   @Test

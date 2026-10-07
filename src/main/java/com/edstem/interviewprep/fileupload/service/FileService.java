@@ -60,11 +60,19 @@ public class FileService {
       log.info("Stored file {} as {} ({} bytes)", saved.getId(), type, saved.getSizeBytes());
       return FileResponse.from(saved);
     } catch (RuntimeException e) {
-      storage.delete(storageKey);
+      discard(storageKey, e);
       if (thumbnailKey != null) {
-        storage.delete(thumbnailKey);
+        discard(thumbnailKey, e);
       }
       throw e;
+    }
+  }
+
+  private void discard(String key, RuntimeException cause) {
+    try {
+      storage.delete(key);
+    } catch (FileStorageException e) {
+      cause.addSuppressed(e);
     }
   }
 
