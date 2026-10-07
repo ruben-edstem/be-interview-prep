@@ -1,7 +1,9 @@
 package com.edstem.interviewprep.library.service;
 
+import com.edstem.interviewprep.library.config.LibraryProperties;
 import com.edstem.interviewprep.library.dto.request.BorrowRequest;
 import com.edstem.interviewprep.library.dto.response.LoanResponse;
+import com.edstem.interviewprep.library.dto.response.OverdueLoanResponse;
 import com.edstem.interviewprep.library.entity.Loan;
 import com.edstem.interviewprep.library.exception.BookAlreadyBorrowedException;
 import com.edstem.interviewprep.library.exception.BookNotBorrowedException;
@@ -9,7 +11,10 @@ import com.edstem.interviewprep.library.exception.BookNotFoundException;
 import com.edstem.interviewprep.library.mapper.LoanMapper;
 import com.edstem.interviewprep.library.repository.BookRepository;
 import com.edstem.interviewprep.library.repository.LoanRepository;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +26,8 @@ public class LoanService {
   private final BookRepository bookRepository;
   private final LoanRepository loanRepository;
   private final LoanMapper loanMapper;
+  private final LibraryProperties libraryProperties;
+  private final Clock clock;
 
   @Transactional
   public LoanResponse borrow(Long bookId, BorrowRequest request) {
@@ -50,5 +57,23 @@ public class LoanService {
             .orElseThrow(() -> new BookNotBorrowedException(bookId));
     loan.setReturnedAt(Instant.now());
     return loanMapper.toResponse(loan);
+  }
+
+  @Transactional(readOnly = true)
+  public List<OverdueLoanResponse> findOverdue() {
+    Instant now = clock.instant();
+    Duration loanPeriod = libraryProperties.loanPeriod();
+    return loanRepository.findOverdue(now.minus(loanPeriod)).stream()
+        .map(
+            loan -> {
+              Duration overdueBy = Duration.between(loan.getBorrowedAt().plus(loanPeriod), now);
+              return loanMapper.toOverdueResponse(loan, roundUpToDays(overdueBy));
+            })
+        .toList();
+  }
+
+  private long roundUpToDays(Duration duration) {
+    long wholeDays = duration.toDays();
+    return duration.equals(Duration.ofDays(wholeDays)) ? wholeDays : wholeDays + 1;
   }
 }
