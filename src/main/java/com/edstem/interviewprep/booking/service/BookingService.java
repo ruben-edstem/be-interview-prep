@@ -15,6 +15,7 @@ import com.edstem.interviewprep.booking.exception.SlotUnavailableException;
 import com.edstem.interviewprep.booking.mapper.BookingMapper;
 import com.edstem.interviewprep.booking.repository.BookingRepository;
 import com.edstem.interviewprep.booking.repository.SlotRepository;
+import com.edstem.interviewprep.booking.repository.WaitingEntryRepository;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDateTime;
@@ -33,6 +34,8 @@ public class BookingService {
   private final BookingProperties properties;
   private final ApplicationEventPublisher eventPublisher;
   private final Clock clock;
+  private final WaitingEntryRepository waitingEntryRepository;
+  private final WaitingListService waitingListService;
 
   @Transactional
   public BookingResponse hold(Long slotId, HoldRequest request) {
@@ -66,6 +69,7 @@ public class BookingService {
     if (slotRepository.book(slotId, bookingId) == 0) {
       throw new HoldExpiredException(bookingId);
     }
+    waitingEntryRepository.deleteByOfferedBooking(bookingId);
 
     eventPublisher.publishEvent(BookingConfirmedEvent.of(bookingId, slotId, doctorId, slotStart));
     return bookingMapper.toResponse(findBooking(bookingId));
@@ -80,6 +84,7 @@ public class BookingService {
         || slotRepository.release(slotId, bookingId) == 0) {
       throw new InvalidBookingStateException(bookingId, "cancelled");
     }
+    waitingListService.offerNext(slotId);
   }
 
   private Booking findBooking(Long bookingId) {

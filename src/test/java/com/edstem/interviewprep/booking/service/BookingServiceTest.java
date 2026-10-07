@@ -24,6 +24,7 @@ import com.edstem.interviewprep.booking.exception.SlotUnavailableException;
 import com.edstem.interviewprep.booking.mapper.BookingMapper;
 import com.edstem.interviewprep.booking.repository.BookingRepository;
 import com.edstem.interviewprep.booking.repository.SlotRepository;
+import com.edstem.interviewprep.booking.repository.WaitingEntryRepository;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -50,6 +51,8 @@ class BookingServiceTest {
   @Mock private BookingRepository bookingRepository;
   @Mock private SlotRepository slotRepository;
   @Mock private ApplicationEventPublisher eventPublisher;
+  @Mock private WaitingEntryRepository waitingEntryRepository;
+  @Mock private WaitingListService waitingListService;
 
   private BookingService bookingService;
   private Slot slot;
@@ -65,7 +68,9 @@ class BookingServiceTest {
             new BookingMapper(),
             properties,
             eventPublisher,
-            clock);
+            clock,
+            waitingEntryRepository,
+            waitingListService);
     Doctor doctor = Doctor.named("Dr Rao");
     ReflectionTestUtils.setField(doctor, "id", 3L);
     slot = Slot.available(doctor, SLOT_START, SLOT_START.plusMinutes(30));
@@ -120,6 +125,7 @@ class BookingServiceTest {
     ArgumentCaptor<BookingConfirmedEvent> event =
         ArgumentCaptor.forClass(BookingConfirmedEvent.class);
     verify(eventPublisher).publishEvent(event.capture());
+    verify(waitingEntryRepository).deleteByOfferedBooking(99L);
     assertThat(response.status()).isEqualTo(BookingStatus.CONFIRMED);
     assertThat(event.getValue().getBookingId()).isEqualTo(99L);
     assertThat(event.getValue().getSlotId()).isEqualTo(10L);
@@ -135,6 +141,7 @@ class BookingServiceTest {
     assertThatThrownBy(() -> bookingService.confirm(99L)).isInstanceOf(HoldExpiredException.class);
 
     verify(slotRepository, never()).book(anyLong(), anyLong());
+    verify(waitingEntryRepository, never()).deleteByOfferedBooking(anyLong());
     verify(eventPublisher, never()).publishEvent(any(Object.class));
   }
 
@@ -177,6 +184,7 @@ class BookingServiceTest {
     bookingService.cancel(99L);
 
     verify(slotRepository).release(10L, 99L);
+    verify(waitingListService).offerNext(10L);
   }
 
   @Test
@@ -188,6 +196,7 @@ class BookingServiceTest {
         .isInstanceOf(InvalidBookingStateException.class);
 
     verify(slotRepository, never()).release(anyLong(), anyLong());
+    verify(waitingListService, never()).offerNext(anyLong());
   }
 
   @Test
