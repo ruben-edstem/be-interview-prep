@@ -12,6 +12,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.context.request.WebRequest;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
 
 @Slf4j
@@ -20,6 +21,9 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
   @ExceptionHandler(ApiException.class)
   public ResponseEntity<ApiError> handleApiException(ApiException ex) {
+    if (ex.getStatus().is5xxServerError()) {
+      log.error("Request failed", ex);
+    }
     ApiError body = ApiError.of(ex.getStatus().value(), ex.getErrorCode(), ex.getMessage());
     return ResponseEntity.status(ex.getStatus()).body(body);
   }
@@ -45,6 +49,20 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     ApiError body =
         new ApiError(status.value(), "VALIDATION_FAILED", "Request validation failed", fieldErrors);
     return ResponseEntity.status(status).headers(headers).body(body);
+  }
+
+  @Override
+  protected ResponseEntity<Object> handleMaxUploadSizeExceededException(
+      MaxUploadSizeExceededException ex,
+      HttpHeaders headers,
+      HttpStatusCode status,
+      WebRequest request) {
+    ApiError body =
+        ApiError.of(
+            HttpStatus.PAYLOAD_TOO_LARGE.value(),
+            "FILE_TOO_LARGE",
+            "File exceeds the maximum upload size");
+    return ResponseEntity.status(HttpStatus.PAYLOAD_TOO_LARGE).headers(headers).body(body);
   }
 
   @Override
