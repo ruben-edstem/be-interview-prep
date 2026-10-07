@@ -102,7 +102,7 @@ class FileUploadIntegrationTest {
     mockMvc
         .perform(multipart("/files").file(fake))
         .andExpect(status().isUnsupportedMediaType())
-        .andExpect(jsonPath("$.error").value("UNSUPPORTED_FILE_TYPE"));
+        .andExpect(jsonPath("$.errorCode").value("UNSUPPORTED_FILE_TYPE"));
 
     assertEquals(0, storedFileCount());
     assertEquals(0, repository.count());
@@ -116,7 +116,7 @@ class FileUploadIntegrationTest {
     mockMvc
         .perform(multipart("/files").file(big))
         .andExpect(status().isPayloadTooLarge())
-        .andExpect(jsonPath("$.error").value("FILE_TOO_LARGE"));
+        .andExpect(jsonPath("$.errorCode").value("FILE_TOO_LARGE"));
 
     assertEquals(0, repository.count());
   }

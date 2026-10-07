@@ -64,7 +64,7 @@ class FileControllerTest {
         .perform(multipart("/files"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.status").value(400))
-        .andExpect(jsonPath("$.error").value("BAD_REQUEST"))
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"))
         .andExpect(jsonPath("$.message").isNotEmpty());
   }
 
@@ -76,7 +76,7 @@ class FileControllerTest {
         .perform(multipart("/files").file(png))
         .andExpect(status().isPayloadTooLarge())
         .andExpect(jsonPath("$.status").value(413))
-        .andExpect(jsonPath("$.error").value("FILE_TOO_LARGE"))
+        .andExpect(jsonPath("$.errorCode").value("FILE_TOO_LARGE"))
         .andExpect(jsonPath("$.message").value("File is too big"));
   }
 
@@ -87,7 +87,7 @@ class FileControllerTest {
     mockMvc
         .perform(multipart("/files").file(png))
         .andExpect(status().isPayloadTooLarge())
-        .andExpect(jsonPath("$.error").value("FILE_TOO_LARGE"));
+        .andExpect(jsonPath("$.errorCode").value("FILE_TOO_LARGE"));
   }
 
   @Test
@@ -97,7 +97,7 @@ class FileControllerTest {
     mockMvc
         .perform(multipart("/files").file(png))
         .andExpect(status().isUnsupportedMediaType())
-        .andExpect(jsonPath("$.error").value("UNSUPPORTED_FILE_TYPE"))
+        .andExpect(jsonPath("$.errorCode").value("UNSUPPORTED_FILE_TYPE"))
         .andExpect(jsonPath("$.message").value("Not allowed"));
   }
 
@@ -146,7 +146,7 @@ class FileControllerTest {
         .perform(get("/files/9"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.status").value(404))
-        .andExpect(jsonPath("$.error").value("FILE_NOT_FOUND"));
+        .andExpect(jsonPath("$.errorCode").value("FILE_NOT_FOUND"));
   }
 
   @Test
@@ -157,7 +157,7 @@ class FileControllerTest {
         .perform(multipart("/files").file(png))
         .andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$.status").value(500))
-        .andExpect(jsonPath("$.error").value("STORAGE_ERROR"))
+        .andExpect(jsonPath("$.errorCode").value("STORAGE_ERROR"))
         .andExpect(jsonPath("$.message").value("Could not store the file"));
   }
 
@@ -169,8 +169,8 @@ class FileControllerTest {
         .perform(multipart("/files").file(png))
         .andExpect(status().isInternalServerError())
         .andExpect(jsonPath("$.status").value(500))
-        .andExpect(jsonPath("$.error").value("INTERNAL_ERROR"))
-        .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
+        .andExpect(jsonPath("$.errorCode").value("INTERNAL_SERVER_ERROR"))
+        .andExpect(jsonPath("$.message").value("Unexpected error"));
   }
 
   @Test
@@ -192,7 +192,7 @@ class FileControllerTest {
     mockMvc
         .perform(get("/files/abc"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
   }
 
   @Test
@@ -200,6 +200,6 @@ class FileControllerTest {
     mockMvc
         .perform(get("/files/0"))
         .andExpect(status().isBadRequest())
-        .andExpect(jsonPath("$.error").value("BAD_REQUEST"));
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
   }
 }

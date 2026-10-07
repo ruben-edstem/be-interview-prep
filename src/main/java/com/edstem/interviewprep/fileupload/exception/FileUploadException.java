@@ -1,23 +1,16 @@
 package com.edstem.interviewprep.fileupload.exception;
 
-import lombok.Getter;
+import com.edstem.interviewprep.common.exception.ApiException;
 import org.springframework.http.HttpStatus;
 
-@Getter
-public abstract class FileUploadException extends RuntimeException {
+public abstract class FileUploadException extends ApiException {
 
-  private final HttpStatus status;
-  private final String code;
-
-  protected FileUploadException(HttpStatus status, String code, String message) {
-    super(message);
-    this.status = status;
-    this.code = code;
+  protected FileUploadException(HttpStatus status, String errorCode, String message) {
+    super(status, errorCode, message);
   }
 
-  protected FileUploadException(HttpStatus status, String code, String message, Throwable cause) {
-    super(message, cause);
-    this.status = status;
-    this.code = code;
+  protected FileUploadException(
+      HttpStatus status, String errorCode, String message, Throwable cause) {
+    super(status, errorCode, message, cause);
   }
 }
