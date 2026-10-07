@@ -4,6 +4,10 @@
 
 - Add thumbnails for uploaded JPEG and PNG images: a proportional preview of at most 200 pixels on the longest side, fetched with `GET /files/{id}/thumbnail`, removed with the file, and left out (without failing the upload) when it cannot be created. PDFs get none and return a clear error.
 
+## 0.1.7
+
+- Add `GET /loans/overdue` to list loans not returned within 14 days (configurable through `library.loan-period`), each with the book, member, borrow time and days overdue.
+
 ## 0.1.6
 
 - Add the run and test steps, a title and the video line to the README.
