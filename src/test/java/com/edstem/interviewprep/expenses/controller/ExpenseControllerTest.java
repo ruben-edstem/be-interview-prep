@@ -9,9 +9,12 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.edstem.interviewprep.expenses.dto.response.CsvFile;
 import com.edstem.interviewprep.expenses.dto.response.ExpenseResponse;
 import com.edstem.interviewprep.expenses.dto.response.MonthlySummaryResponse;
 import com.edstem.interviewprep.expenses.entity.ExpenseCategory;
@@ -170,6 +173,38 @@ class ExpenseControllerTest {
         .andExpect(jsonPath("$.totals.FOOD").value(0.10))
         .andExpect(jsonPath("$.totals.TRAVEL").value(0.20))
         .andExpect(jsonPath("$.total").value(0.30));
+  }
+
+  @Test
+  void summaryCsvIsDownloadedAsNamedCsvFile() throws Exception {
+    when(service.exportSummary(YearMonth.of(2026, 3)))
+        .thenReturn(new CsvFile("expense-summary-2026-03.csv", "category,total\r\nTOTAL,0.00\r\n"));
+
+    mockMvc
+        .perform(get("/expenses/summary/csv").param("month", "2026-03"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith("text/csv"))
+        .andExpect(
+            header()
+                .string(
+                    "Content-Disposition", "attachment; filename=\"expense-summary-2026-03.csv\""))
+        .andExpect(content().string("category,total\r\nTOTAL,0.00\r\n"));
+  }
+
+  @Test
+  void summaryCsvRejectsInvalidMonthWithJsonError() throws Exception {
+    mockMvc
+        .perform(get("/expenses/summary/csv").param("month", "2026-13"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
+  }
+
+  @Test
+  void summaryCsvRequiresMonth() throws Exception {
+    mockMvc
+        .perform(get("/expenses/summary/csv"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
   }
 
   @Test
