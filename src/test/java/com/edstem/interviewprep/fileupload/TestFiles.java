@@ -1,6 +1,12 @@
 package com.edstem.interviewprep.fileupload;
 
+import java.awt.Color;
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Arrays;
+import javax.imageio.ImageIO;
 
 public final class TestFiles {
 
@@ -23,5 +29,30 @@ public final class TestFiles {
     byte[] content = new byte[size];
     System.arraycopy(header, 0, content, 0, header.length);
     return content;
+  }
+
+  public static byte[] image(String format, int width, int height) {
+    int imageType = format.equals("png") ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+    BufferedImage image = new BufferedImage(width, height, imageType);
+    var graphics = image.createGraphics();
+    graphics.setColor(Color.RED);
+    graphics.fillRect(0, 0, width, height);
+    graphics.setColor(Color.BLUE);
+    graphics.fillRect(0, 0, width / 2, height / 2);
+    graphics.dispose();
+    try (ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+      ImageIO.write(image, format, output);
+      return output.toByteArray();
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
+  }
+
+  public static BufferedImage decode(byte[] content) {
+    try {
+      return ImageIO.read(new java.io.ByteArrayInputStream(content));
+    } catch (IOException e) {
+      throw new UncheckedIOException(e);
+    }
   }
 }

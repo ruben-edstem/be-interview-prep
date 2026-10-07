@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
 import java.util.UUID;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -32,6 +33,18 @@ public class FileStorageService {
     Path target = resolve(key);
     try (InputStream content = file.getInputStream()) {
       Files.copy(content, target);
+    } catch (IOException e) {
+      delete(key);
+      throw new FileStorageException("Could not store the file", e);
+    }
+    return key;
+  }
+
+  public String storeBytes(byte[] content) {
+    String key = UUID.randomUUID().toString();
+    Path target = resolve(key);
+    try {
+      Files.write(target, content, StandardOpenOption.CREATE_NEW);
     } catch (IOException e) {
       delete(key);
       throw new FileStorageException("Could not store the file", e);

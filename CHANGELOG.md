@@ -4,6 +4,10 @@
 
 - Keep the Q4 rate limit correct when several app instances run: request counts now live in a shared database table updated with atomic conditional statements, so copies pointed at the same database share one limit. `ratelimit.store=memory` keeps the single-instance in-memory counter.
 
+## 0.1.9
+
+- Add thumbnails for uploaded JPEG and PNG images: a proportional preview of at most 200 pixels on the longest side, fetched with `GET /files/{id}/thumbnail`, removed with the file, and left out (without failing the upload) when it cannot be created. PDFs get none and return a clear error.
+
 ## 0.1.8
 
 - Add Q2 optional extra: download the monthly spending summary as a CSV file from `GET /expenses/summary/csv?month=YYYY-MM`, with one row per category, an overall total row, exact two-decimal amounts and a file name that includes the month.
