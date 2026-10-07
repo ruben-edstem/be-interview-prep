@@ -20,4 +20,8 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
   @Modifying(flushAutomatically = true, clearAutomatically = true)
   @Query("update Booking b set b.status = CANCELLED where b.id = :id and b.status = CONFIRMED")
   int cancel(@Param("id") Long id);
+
+  @Modifying(flushAutomatically = true, clearAutomatically = true)
+  @Query("update Booking b set b.status = CANCELLED where b.id = :id and b.status = HELD")
+  int cancelHold(@Param("id") Long id);
 }
