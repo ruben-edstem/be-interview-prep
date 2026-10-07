@@ -162,6 +162,18 @@ class FileControllerTest {
   }
 
   @Test
+  void unexpectedFailureReturnsGenericErrorWithoutLeakingDetails() throws Exception {
+    when(fileService.upload(any())).thenThrow(new IllegalStateException("jdbc:h2:mem secret"));
+
+    mockMvc
+        .perform(multipart("/files").file(png))
+        .andExpect(status().isInternalServerError())
+        .andExpect(jsonPath("$.status").value(500))
+        .andExpect(jsonPath("$.error").value("INTERNAL_ERROR"))
+        .andExpect(jsonPath("$.message").value("An unexpected error occurred"));
+  }
+
+  @Test
   void deleteReturnsNoContent() throws Exception {
     mockMvc.perform(delete("/files/1")).andExpect(status().isNoContent());
 

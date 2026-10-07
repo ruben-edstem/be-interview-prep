@@ -27,6 +27,17 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
                 exception.getStatus().value(), exception.getCode(), exception.getMessage()));
   }
 
+  @ExceptionHandler(Exception.class)
+  public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception) {
+    log.error("Unexpected error", exception);
+    return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+        .body(
+            new ErrorResponse(
+                HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "INTERNAL_ERROR",
+                "An unexpected error occurred"));
+  }
+
   @Override
   protected ResponseEntity<Object> handleMaxUploadSizeExceededException(
       MaxUploadSizeExceededException exception,
