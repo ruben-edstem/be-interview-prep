@@ -2,6 +2,7 @@ package com.edstem.interviewprep.fileupload.controller;
 
 import com.edstem.interviewprep.fileupload.dto.response.FileDownload;
 import com.edstem.interviewprep.fileupload.dto.response.FileResponse;
+import com.edstem.interviewprep.fileupload.dto.response.ThumbnailDownload;
 import com.edstem.interviewprep.fileupload.service.FileService;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -55,6 +56,15 @@ public class FileController {
         .contentType(MediaType.parseMediaType(download.contentType()))
         .contentLength(download.size())
         .body(download.content());
+  }
+
+  @GetMapping("/{id}/thumbnail")
+  public ResponseEntity<Resource> thumbnail(@PathVariable @Positive Long id) {
+    ThumbnailDownload thumbnail = fileService.thumbnail(id);
+    return ResponseEntity.ok()
+        .header("X-Content-Type-Options", "nosniff")
+        .contentType(MediaType.parseMediaType(thumbnail.contentType()))
+        .body(thumbnail.content());
   }
 
   @DeleteMapping("/{id}")

@@ -15,12 +15,14 @@ import com.edstem.interviewprep.fileupload.TestFiles;
 import com.edstem.interviewprep.fileupload.config.FileUploadProperties;
 import com.edstem.interviewprep.fileupload.dto.response.FileDownload;
 import com.edstem.interviewprep.fileupload.dto.response.FileResponse;
+import com.edstem.interviewprep.fileupload.dto.response.ThumbnailDownload;
 import com.edstem.interviewprep.fileupload.entity.FileType;
 import com.edstem.interviewprep.fileupload.entity.StoredFile;
 import com.edstem.interviewprep.fileupload.exception.FileStorageException;
 import com.edstem.interviewprep.fileupload.exception.FileTooLargeException;
 import com.edstem.interviewprep.fileupload.exception.InvalidFileException;
 import com.edstem.interviewprep.fileupload.exception.StoredFileNotFoundException;
+import com.edstem.interviewprep.fileupload.exception.ThumbnailNotAvailableException;
 import com.edstem.interviewprep.fileupload.exception.UnsupportedFileTypeException;
 import com.edstem.interviewprep.fileupload.repository.StoredFileRepository;
 import java.io.IOException;
@@ -330,6 +332,51 @@ class FileServiceTest {
   }
 
   @Test
+  void thumbnailReturnsTheStoredThumbnail() {
+    ByteArrayResource content = new ByteArrayResource(new byte[] {1, 2, 3});
+    StoredFile stored = storedFileWithThumbnail(FileType.JPEG);
+    when(repository.findById(1L)).thenReturn(Optional.of(stored));
+    when(storage.load("thumb-1")).thenReturn(content);
+
+    ThumbnailDownload thumbnail = service.thumbnail(1L);
+
+    assertEquals("image/jpeg", thumbnail.contentType());
+    assertEquals(content, thumbnail.content());
+  }
+
+  @Test
+  void thumbnailOfAPdfIsNotAvailable() {
+    StoredFile pdf =
+        StoredFile.builder()
+            .id(1L)
+            .originalName("doc.pdf")
+            .fileType(FileType.PDF)
+            .sizeBytes(64)
+            .storageKey("key-1")
+            .build();
+    when(repository.findById(1L)).thenReturn(Optional.of(pdf));
+
+    ThumbnailNotAvailableException exception =
+        assertThrows(ThumbnailNotAvailableException.class, () -> service.thumbnail(1L));
+
+    assertTrue(exception.getMessage().contains("PDF"));
+  }
+
+  @Test
+  void thumbnailOfAnImageWithoutOneIsNotAvailable() {
+    when(repository.findById(1L)).thenReturn(Optional.of(storedFile()));
+
+    assertThrows(ThumbnailNotAvailableException.class, () -> service.thumbnail(1L));
+  }
+
+  @Test
+  void thumbnailOfUnknownFileFails() {
+    when(repository.findById(9L)).thenReturn(Optional.empty());
+
+    assertThrows(StoredFileNotFoundException.class, () -> service.thumbnail(9L));
+  }
+
+  @Test
   void deleteRemovesTheThumbnailAsWell() {
     StoredFile stored =
         StoredFile.builder()
@@ -347,6 +394,17 @@ class FileServiceTest {
     verify(repository).delete(stored);
     verify(storage).delete("key-1");
     verify(storage).delete("thumb-1");
+  }
+
+  private StoredFile storedFileWithThumbnail(FileType type) {
+    return StoredFile.builder()
+        .id(1L)
+        .originalName("photo")
+        .fileType(type)
+        .sizeBytes(64)
+        .storageKey("key-1")
+        .thumbnailKey("thumb-1")
+        .build();
   }
 
   private StoredFile storedFile() {

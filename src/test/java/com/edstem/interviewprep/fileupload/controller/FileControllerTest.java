@@ -15,9 +15,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.edstem.interviewprep.fileupload.TestFiles;
 import com.edstem.interviewprep.fileupload.dto.response.FileDownload;
 import com.edstem.interviewprep.fileupload.dto.response.FileResponse;
+import com.edstem.interviewprep.fileupload.dto.response.ThumbnailDownload;
 import com.edstem.interviewprep.fileupload.exception.FileStorageException;
 import com.edstem.interviewprep.fileupload.exception.FileTooLargeException;
 import com.edstem.interviewprep.fileupload.exception.StoredFileNotFoundException;
+import com.edstem.interviewprep.fileupload.exception.ThumbnailNotAvailableException;
 import com.edstem.interviewprep.fileupload.exception.UnsupportedFileTypeException;
 import com.edstem.interviewprep.fileupload.service.FileService;
 import java.time.Instant;
@@ -174,6 +176,41 @@ class FileControllerTest {
         .andExpect(jsonPath("$.status").value(500))
         .andExpect(jsonPath("$.errorCode").value("INTERNAL_SERVER_ERROR"))
         .andExpect(jsonPath("$.message").value("Unexpected error"));
+  }
+
+  @Test
+  void thumbnailReturnsTheImage() throws Exception {
+    byte[] content = {1, 2, 3};
+    when(fileService.thumbnail(1L))
+        .thenReturn(new ThumbnailDownload("image/png", new ByteArrayResource(content)));
+
+    mockMvc
+        .perform(get("/files/1/thumbnail"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType("image/png"))
+        .andExpect(content().bytes(content))
+        .andExpect(header().string("X-Content-Type-Options", "nosniff"));
+  }
+
+  @Test
+  void thumbnailOfAPdfReturnsAClearNotFoundError() throws Exception {
+    when(fileService.thumbnail(2L))
+        .thenThrow(new ThumbnailNotAvailableException("Files of type PDF have no thumbnail"));
+
+    mockMvc
+        .perform(get("/files/2/thumbnail"))
+        .andExpect(status().isNotFound())
+        .andExpect(jsonPath("$.status").value(404))
+        .andExpect(jsonPath("$.errorCode").value("THUMBNAIL_NOT_AVAILABLE"))
+        .andExpect(jsonPath("$.message").value("Files of type PDF have no thumbnail"));
+  }
+
+  @Test
+  void thumbnailWithNonPositiveIdIsABadRequest() throws Exception {
+    mockMvc
+        .perform(get("/files/0/thumbnail"))
+        .andExpect(status().isBadRequest())
+        .andExpect(jsonPath("$.errorCode").value("BAD_REQUEST"));
   }
 
   @Test

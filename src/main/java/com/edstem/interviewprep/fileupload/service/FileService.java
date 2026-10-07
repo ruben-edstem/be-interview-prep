@@ -3,12 +3,14 @@ package com.edstem.interviewprep.fileupload.service;
 import com.edstem.interviewprep.fileupload.config.FileUploadProperties;
 import com.edstem.interviewprep.fileupload.dto.response.FileDownload;
 import com.edstem.interviewprep.fileupload.dto.response.FileResponse;
+import com.edstem.interviewprep.fileupload.dto.response.ThumbnailDownload;
 import com.edstem.interviewprep.fileupload.entity.FileType;
 import com.edstem.interviewprep.fileupload.entity.StoredFile;
 import com.edstem.interviewprep.fileupload.exception.FileStorageException;
 import com.edstem.interviewprep.fileupload.exception.FileTooLargeException;
 import com.edstem.interviewprep.fileupload.exception.InvalidFileException;
 import com.edstem.interviewprep.fileupload.exception.StoredFileNotFoundException;
+import com.edstem.interviewprep.fileupload.exception.ThumbnailNotAvailableException;
 import com.edstem.interviewprep.fileupload.exception.UnsupportedFileTypeException;
 import com.edstem.interviewprep.fileupload.repository.StoredFileRepository;
 import java.io.IOException;
@@ -79,6 +81,19 @@ public class FileService {
         file.getFileType().getMediaType(),
         file.getSizeBytes(),
         storage.load(file.getStorageKey()));
+  }
+
+  @Transactional(readOnly = true)
+  public ThumbnailDownload thumbnail(Long id) {
+    StoredFile file = find(id);
+    if (file.getThumbnailKey() == null) {
+      throw new ThumbnailNotAvailableException(
+          file.getFileType().isImage()
+              ? "No thumbnail could be created for file " + id
+              : "Files of type " + file.getFileType() + " have no thumbnail");
+    }
+    return new ThumbnailDownload(
+        file.getFileType().getMediaType(), storage.load(file.getThumbnailKey()));
   }
 
   @Transactional
