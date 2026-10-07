@@ -1,6 +1,7 @@
 package com.edstem.interviewprep.booking.notification;
 
 import com.edstem.interviewprep.booking.event.BookingConfirmedEvent;
+import com.edstem.interviewprep.booking.event.SlotOfferedEvent;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Async;
@@ -22,6 +23,16 @@ public class BookingConfirmedListener {
       notificationSender.send(event);
     } catch (RuntimeException ex) {
       log.error("Failed to send confirmation for booking {}", event.getBookingId(), ex);
+    }
+  }
+
+  @Async
+  @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
+  public void onSlotOffered(SlotOfferedEvent event) {
+    try {
+      notificationSender.send(event);
+    } catch (RuntimeException ex) {
+      log.error("Failed to send offer for booking {}", event.getBookingId(), ex);
     }
   }
 }
