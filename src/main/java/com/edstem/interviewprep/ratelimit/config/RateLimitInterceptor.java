@@ -5,10 +5,8 @@ import com.edstem.interviewprep.ratelimit.service.RateLimiter;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
-@Component
 @RequiredArgsConstructor
 public class RateLimitInterceptor implements HandlerInterceptor {
 

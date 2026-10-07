@@ -11,6 +11,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.edstem.interviewprep.ratelimit.config.RateLimitConfig;
 import com.edstem.interviewprep.ratelimit.dto.response.QuoteResponse;
 import com.edstem.interviewprep.ratelimit.exception.RateLimitExceededException;
 import com.edstem.interviewprep.ratelimit.service.QuoteService;
@@ -18,10 +19,12 @@ import com.edstem.interviewprep.ratelimit.service.RateLimiter;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(QuoteController.class)
+@Import(RateLimitConfig.class)
 class QuoteControllerTest {
 
   private static final String RANDOM_QUOTE_URL = "/api/quotes/random";
