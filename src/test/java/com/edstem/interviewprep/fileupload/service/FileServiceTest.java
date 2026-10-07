@@ -3,6 +3,7 @@ package com.edstem.interviewprep.fileupload.service;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -19,6 +20,7 @@ import com.edstem.interviewprep.fileupload.exception.InvalidFileException;
 import com.edstem.interviewprep.fileupload.exception.StoredFileNotFoundException;
 import com.edstem.interviewprep.fileupload.exception.UnsupportedFileTypeException;
 import com.edstem.interviewprep.fileupload.repository.StoredFileRepository;
+import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -34,6 +36,7 @@ import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Sort;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.util.unit.DataSize;
+import org.springframework.web.multipart.MultipartFile;
 
 @ExtendWith(MockitoExtension.class)
 class FileServiceTest {
@@ -232,6 +235,19 @@ class FileServiceTest {
     assertThrows(StoredFileNotFoundException.class, () -> service.delete(9L));
 
     verify(storage, never()).delete(any());
+  }
+
+  @Test
+  void uploadRejectsFileThatCannotBeRead() throws IOException {
+    MultipartFile unreadable = mock(MultipartFile.class);
+    when(unreadable.getOriginalFilename()).thenReturn("photo.png");
+    when(unreadable.isEmpty()).thenReturn(false);
+    when(unreadable.getSize()).thenReturn(64L);
+    when(unreadable.getInputStream()).thenThrow(new IOException("disk error"));
+
+    assertThrows(InvalidFileException.class, () -> service.upload(unreadable));
+
+    verifyNoInteractions(storage, repository);
   }
 
   private StoredFile storedFile() {

@@ -15,6 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.edstem.interviewprep.fileupload.TestFiles;
 import com.edstem.interviewprep.fileupload.dto.response.FileDownload;
 import com.edstem.interviewprep.fileupload.dto.response.FileResponse;
+import com.edstem.interviewprep.fileupload.exception.FileStorageException;
 import com.edstem.interviewprep.fileupload.exception.FileTooLargeException;
 import com.edstem.interviewprep.fileupload.exception.StoredFileNotFoundException;
 import com.edstem.interviewprep.fileupload.exception.UnsupportedFileTypeException;
@@ -146,6 +147,18 @@ class FileControllerTest {
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.status").value(404))
         .andExpect(jsonPath("$.error").value("FILE_NOT_FOUND"));
+  }
+
+  @Test
+  void storageFailureReturnsInternalServerErrorWithStorageCode() throws Exception {
+    when(fileService.upload(any())).thenThrow(new FileStorageException("Could not store the file"));
+
+    mockMvc
+        .perform(multipart("/files").file(png))
+        .andExpect(status().isInternalServerError())
+        .andExpect(jsonPath("$.status").value(500))
+        .andExpect(jsonPath("$.error").value("STORAGE_ERROR"))
+        .andExpect(jsonPath("$.message").value("Could not store the file"));
   }
 
   @Test

@@ -5,6 +5,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 import com.edstem.interviewprep.fileupload.TestFiles;
 import com.edstem.interviewprep.fileupload.config.FileUploadProperties;
@@ -20,6 +22,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.io.Resource;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.util.unit.DataSize;
+import org.springframework.web.multipart.MultipartFile;
 
 class FileStorageServiceTest {
 
@@ -82,5 +85,34 @@ class FileStorageServiceTest {
     assertThrows(FileStorageException.class, () -> storage.load(outside.toString()));
     assertThrows(FileStorageException.class, () -> storage.delete(".."));
     assertTrue(Files.exists(outside));
+  }
+
+  @Test
+  void creatingTheStorageDirectoryFailsWhenTheRootIsAFile() throws IOException {
+    Path notADirectory = Files.writeString(base.resolve("not-a-directory"), "x");
+    FileUploadProperties properties =
+        new FileUploadProperties(notADirectory, DataSize.ofMegabytes(5));
+
+    assertThrows(FileStorageException.class, () -> new FileStorageService(properties));
+  }
+
+  @Test
+  void storeFailsAndLeavesNothingBehindWhenTheUploadCannotBeRead() throws IOException {
+    MultipartFile unreadable = mock(MultipartFile.class);
+    when(unreadable.getInputStream()).thenThrow(new IOException("disk error"));
+
+    assertThrows(FileStorageException.class, () -> storage.store(unreadable));
+
+    try (Stream<Path> files = Files.list(storageRoot)) {
+      assertEquals(0, files.count());
+    }
+  }
+
+  @Test
+  void deleteFailsWhenTheFileCannotBeRemoved() throws IOException {
+    Path directory = Files.createDirectories(storageRoot.resolve("locked"));
+    Files.writeString(directory.resolve("inner"), "x");
+
+    assertThrows(FileStorageException.class, () -> storage.delete("locked"));
   }
 }
