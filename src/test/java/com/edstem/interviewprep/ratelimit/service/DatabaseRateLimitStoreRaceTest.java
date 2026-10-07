@@ -11,6 +11,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.edstem.interviewprep.ratelimit.entity.RateLimitWindow;
 import com.edstem.interviewprep.ratelimit.repository.RateLimitWindowRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -35,7 +36,7 @@ class DatabaseRateLimitStoreRaceTest {
   void insertsTheFirstRequestOfAKey() {
     when(repository.increment(anyString(), anyLong(), anyInt())).thenReturn(0);
     when(repository.restart(anyString(), anyLong(), anyLong())).thenReturn(0);
-    when(repository.findWindowStart(anyString())).thenReturn(Optional.empty());
+    when(repository.findById(anyString())).thenReturn(Optional.empty());
     when(repository.insertFirst(anyString(), anyLong())).thenReturn(1);
 
     RateLimitDecision decision = store.record("client-a", NOW, MAX, WINDOW);
@@ -48,7 +49,7 @@ class DatabaseRateLimitStoreRaceTest {
   void retriesWhenAnotherInstanceInsertsTheFirstRowAtTheSameTime() {
     when(repository.increment(anyString(), anyLong(), anyInt())).thenReturn(0, 1);
     when(repository.restart(anyString(), anyLong(), anyLong())).thenReturn(0);
-    when(repository.findWindowStart(anyString())).thenReturn(Optional.empty());
+    when(repository.findById(anyString())).thenReturn(Optional.empty());
     when(repository.insertFirst(anyString(), anyLong()))
         .thenThrow(new DataIntegrityViolationException("duplicate key"));
 
@@ -62,7 +63,8 @@ class DatabaseRateLimitStoreRaceTest {
   void retriesWhenTheWindowEndedAfterTheFailedIncrement() {
     when(repository.increment(anyString(), anyLong(), anyInt())).thenReturn(0);
     when(repository.restart(anyString(), anyLong(), anyLong())).thenReturn(0, 1);
-    when(repository.findWindowStart(anyString())).thenReturn(Optional.of(CUTOFF));
+    when(repository.findById(anyString()))
+        .thenReturn(Optional.of(new RateLimitWindow("key", CUTOFF, MAX)));
 
     RateLimitDecision decision = store.record("client-a", NOW, MAX, WINDOW);
 
@@ -71,10 +73,24 @@ class DatabaseRateLimitStoreRaceTest {
   }
 
   @Test
-  void rejectsWhileTheStoredWindowIsStillRunning() {
+  void retriesWhenAnotherRequestJustStartedTheWindowAndItIsNotFull() {
+    when(repository.increment(anyString(), anyLong(), anyInt())).thenReturn(0, 1);
+    when(repository.restart(anyString(), anyLong(), anyLong())).thenReturn(0);
+    when(repository.findById(anyString()))
+        .thenReturn(Optional.of(new RateLimitWindow("key", NOW - 10L, 1)));
+
+    RateLimitDecision decision = store.record("client-a", NOW, MAX, WINDOW);
+
+    assertTrue(decision.allowed());
+    verify(repository, times(2)).increment(anyString(), anyLong(), anyInt());
+  }
+
+  @Test
+  void rejectsWhileTheStoredWindowIsRunningAndFull() {
     when(repository.increment(anyString(), anyLong(), anyInt())).thenReturn(0);
     when(repository.restart(anyString(), anyLong(), anyLong())).thenReturn(0);
-    when(repository.findWindowStart(anyString())).thenReturn(Optional.of(NOW - 1_000L));
+    when(repository.findById(anyString()))
+        .thenReturn(Optional.of(new RateLimitWindow("key", NOW - 1_000L, MAX)));
 
     RateLimitDecision decision = store.record("client-a", NOW, MAX, WINDOW);
 
@@ -86,7 +102,7 @@ class DatabaseRateLimitStoreRaceTest {
   void givesUpAfterTheMaximumNumberOfAttempts() {
     when(repository.increment(anyString(), anyLong(), anyInt())).thenReturn(0);
     when(repository.restart(anyString(), anyLong(), anyLong())).thenReturn(0);
-    when(repository.findWindowStart(anyString())).thenReturn(Optional.empty());
+    when(repository.findById(anyString())).thenReturn(Optional.empty());
     when(repository.insertFirst(anyString(), anyLong()))
         .thenThrow(new DataIntegrityViolationException("duplicate key"));
 

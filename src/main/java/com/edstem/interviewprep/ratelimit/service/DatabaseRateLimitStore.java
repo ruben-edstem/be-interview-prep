@@ -1,5 +1,6 @@
 package com.edstem.interviewprep.ratelimit.service;
 
+import com.edstem.interviewprep.ratelimit.entity.RateLimitWindow;
 import com.edstem.interviewprep.ratelimit.repository.RateLimitWindowRepository;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -36,10 +37,11 @@ public class DatabaseRateLimitStore implements RateLimitStore {
         return RateLimitDecision.accepted();
       }
 
-      Optional<Long> windowStart = repository.findWindowStart(key);
-      if (windowStart.isPresent()) {
-        if (windowStart.get() > cutoff) {
-          return RateLimitDecision.rejected(windowStart.get());
+      Optional<RateLimitWindow> stored = repository.findById(key);
+      if (stored.isPresent()) {
+        RateLimitWindow window = stored.get();
+        if (window.getWindowStartMillis() > cutoff && window.getRequestCount() >= maxRequests) {
+          return RateLimitDecision.rejected(window.getWindowStartMillis());
         }
       } else if (insertFirst(key, nowMillis)) {
         return RateLimitDecision.accepted();

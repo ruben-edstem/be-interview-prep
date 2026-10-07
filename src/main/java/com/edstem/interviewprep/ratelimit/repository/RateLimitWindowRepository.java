@@ -1,7 +1,6 @@
 package com.edstem.interviewprep.ratelimit.repository;
 
 import com.edstem.interviewprep.ratelimit.entity.RateLimitWindow;
-import java.util.Optional;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -38,9 +37,6 @@ public interface RateLimitWindowRepository extends JpaRepository<RateLimitWindow
           """,
       nativeQuery = true)
   int insertFirst(@Param("key") String key, @Param("now") long now);
-
-  @Query("select w.windowStartMillis from RateLimitWindow w where w.apiKeyHash = :key")
-  Optional<Long> findWindowStart(@Param("key") String key);
 
   @Transactional
   @Modifying(flushAutomatically = true, clearAutomatically = true)

@@ -91,14 +91,34 @@ class SharedRateLimitTest {
   @Test
   void manyRequestsAtOnceAcrossTwoInstancesAllowExactlyTheLimit() throws Exception {
     String apiKey = UUID.randomUUID().toString();
+
+    Outcome outcome = fireTogether(apiKey, THREADS);
+
+    assertEquals(MAX_REQUESTS, outcome.allowed());
+    assertEquals(THREADS - MAX_REQUESTS, outcome.rejected());
+  }
+
+  @Test
+  void requestsRacingToStartAWindowAreNeverRejectedBelowTheLimit() throws Exception {
+    int rounds = 30;
+    int requestsPerRound = MAX_REQUESTS - 2;
+
+    for (int round = 0; round < rounds; round++) {
+      Outcome outcome = fireTogether(UUID.randomUUID().toString(), requestsPerRound);
+
+      assertEquals(0, outcome.rejected(), "a request was rejected in round " + round);
+    }
+  }
+
+  private Outcome fireTogether(String apiKey, int requests) throws Exception {
     AtomicInteger allowed = new AtomicInteger();
     AtomicInteger rejected = new AtomicInteger();
-    CountDownLatch ready = new CountDownLatch(THREADS);
+    CountDownLatch ready = new CountDownLatch(requests);
     CountDownLatch start = new CountDownLatch(1);
-    ExecutorService executor = Executors.newFixedThreadPool(THREADS);
+    ExecutorService executor = Executors.newFixedThreadPool(requests);
 
     List<Future<?>> futures = new ArrayList<>();
-    for (int thread = 0; thread < THREADS; thread++) {
+    for (int thread = 0; thread < requests; thread++) {
       RateLimiter instance = thread % 2 == 0 ? firstInstance : secondInstance;
       futures.add(
           executor.submit(
@@ -121,7 +141,8 @@ class SharedRateLimitTest {
     }
     executor.shutdown();
 
-    assertEquals(MAX_REQUESTS, allowed.get());
-    assertEquals(THREADS - MAX_REQUESTS, rejected.get());
+    return new Outcome(allowed.get(), rejected.get());
   }
+
+  private record Outcome(int allowed, int rejected) {}
 }
