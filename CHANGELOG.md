@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.8
+
+- Add Q2 optional extra: download the monthly spending summary as a CSV file from `GET /expenses/summary/csv?month=YYYY-MM`, with one row per category, an overall total row, exact two-decimal amounts and a file name that includes the month.
+
 ## 0.1.6
 
 - Add the run and test steps, a title and the video line to the README.
