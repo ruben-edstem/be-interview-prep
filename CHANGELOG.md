@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.4
+
+- Add per-API-key rate limiting on `GET /api/quotes/random`: 10 requests per minute by default, configurable through `ratelimit.max-requests` and `ratelimit.window`, with 429 and `Retry-After` when exceeded.
+
 ## 0.1.3
 
 - Add file upload service: upload, list, download and delete JPEG, PNG and PDF files up to 5 MB, with content-based type checks and path-traversal-safe storage.

@@ -25,7 +25,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
       log.error("Request failed", ex);
     }
     ApiError body = ApiError.of(ex.getStatus().value(), ex.getErrorCode(), ex.getMessage());
-    return ResponseEntity.status(ex.getStatus()).body(body);
+    return ResponseEntity.status(ex.getStatus()).headers(ex.headers()).body(body);
   }
 
   @ExceptionHandler(Exception.class)
